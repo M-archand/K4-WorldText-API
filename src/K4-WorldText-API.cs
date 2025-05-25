@@ -20,7 +20,7 @@ public class Plugin : BasePlugin
     public List<WorldTextConfig> loadedConfigs = new();
     public List<MultilineWorldText> multilineWorldTexts = new();
     public override string ModuleName => "CS2 WorldText API";
-    public override string ModuleVersion => "1.2.3";
+    public override string ModuleVersion => "1.2.4";
     public override string ModuleAuthor => "K4ryuu";
 
     public static PluginCapability<IK4WorldTextSharedAPI> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");
