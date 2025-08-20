@@ -14,6 +14,7 @@ public class TextLine
 {
     public Color Color = Color.White;
     public int FontSize = 20;
+    public string FontName = "Arial Bold";
     public bool FullBright = true;
 
     public PointWorldTextJustifyHorizontal_t JustifyHorizontal =

@@ -20,7 +20,7 @@ public class Plugin : BasePlugin
     public List<WorldTextConfig> loadedConfigs = new();
     public List<MultilineWorldText> multilineWorldTexts = new();
     public override string ModuleName => "CS2 WorldText API";
-    public override string ModuleVersion => "1.2.4";
+    public override string ModuleVersion => "1.2.5";
     public override string ModuleAuthor => "K4ryuu";
 
     public static PluginCapability<IK4WorldTextSharedAPI> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");
@@ -72,7 +72,7 @@ public class Plugin : BasePlugin
             var json = File.ReadAllText(configFilePath);
             loadedConfigs = JsonConvert.DeserializeObject<List<WorldTextConfig>>(json);
 
-            if (loadedConfigs is null)
+            if (loadedConfigs == null)
             {
                 Logger.LogWarning($"Failed to deserialize configuration file: {configFilePath}");
                 loadedConfigs = new List<WorldTextConfig>();
@@ -266,8 +266,7 @@ public class Plugin : BasePlugin
             $" {ChatColors.Silver}Saved in config: {ChatColors.Yellow}{(loadedConfigs?.Any(config => config.Lines == target.Lines && config.AbsOrigin == target.Texts[0].AbsOrigin.ToString() && config.AbsRotation == target.Texts[0].AbsRotation.ToString()) ?? false ? "Yes" : "No")}");
     }
 
-    public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines,
-        bool saveConfig = false)
+    public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines, bool saveConfig = false)
     {
         var AbsOrigin = Vector.Zero;
         var AbsRotation = QAngle.Zero;
