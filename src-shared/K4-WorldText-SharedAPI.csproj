@@ -3,7 +3,6 @@
         <DebugSymbols>False</DebugSymbols>
         <DebugType>None</DebugType>
         <GenerateDependencyFile>false</GenerateDependencyFile>
-        <PublishDir>./</PublishDir>
     </PropertyGroup>
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>

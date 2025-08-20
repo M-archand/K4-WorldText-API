@@ -1,3 +1,4 @@
+using System.Text;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -21,6 +22,8 @@ public class WorldText : IDisposable
 
     public CPointWorldText? Entity { get; private set; }
 
+    public CPointWorldText? BackgroundEntity { get; private set; }
+
     public TextLine Data { get; set; }
     public Vector AbsOrigin { get; set; }
     public QAngle AbsRotation { get; set; }
@@ -31,35 +34,72 @@ public class WorldText : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private static string MaskLine(string text)
+    {
+        const char nbsp = '\u00A0';
+        var sb = new StringBuilder(text.Length);
+        foreach (var ch in text)
+            sb.Append(ch == '\n' ? '\n' : nbsp);
+        return sb.ToString();
+    }
+
     public void Spawn()
     {
-        Entity = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext");
-        if (Entity is null)
+        if (Data.BackgroundEnabled)
+        {
+            var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
+                    ?? throw new Exception("Failed to create background point_worldtext Entity.");
+
+            bg.MessageText = Data.BackgroundHideText ? MaskLine(Data.Text) : Data.Text;
+
+            bg.Enabled = true;
+            bg.FontName = Data.FontName;
+            bg.FontSize = Data.FontSize;
+            bg.Fullbright = Data.BackgroundFullBright;
+            bg.Color = Data.BackgroundColor;
+            bg.WorldUnitsPerPx = Data.BackgroundScale;
+            bg.DepthOffset = Data.BackgroundDepthOffset;
+            bg.JustifyHorizontal = Data.JustifyHorizontal;
+            bg.JustifyVertical = Data.JustifyVertical;
+            bg.ReorientMode = Data.ReorientMode;
+
+            bg.DrawBackground = true;
+            bg.BackgroundBorderWidth  = Data.BackgroundBorderWidth;
+            bg.BackgroundBorderHeight = Data.BackgroundBorderHeight;
+            bg.BackgroundWorldToUV    = Data.BackgroundWorldToUV;
+
+            bg.Teleport(AbsOrigin, AbsRotation);
+            bg.DispatchSpawn();
+
+            BackgroundEntity = bg;
+        }
+
+        var ent = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext");
+        if (ent is null)
             throw new Exception("Failed to create point_worldtext Entity.");
 
-        Entity.MessageText = Data.Text;
-        Entity.Enabled = true;
-        Entity.FontSize = Data.FontSize;
-        Entity.Color = Data.Color;
-        Entity.Fullbright = Data.FullBright;
-        Entity.WorldUnitsPerPx = Data.Scale;
-        Entity.DepthOffset = 0.0f;
-        Entity.JustifyHorizontal = Data.JustifyHorizontal;
-        Entity.JustifyVertical = Data.JustifyVertical;
-        Entity.ReorientMode = Data.ReorientMode;
+        ent.MessageText = Data.Text;
+        ent.Enabled = true;
+        ent.FontName = Data.FontName;
+        ent.FontSize = Data.FontSize;
+        ent.Color = Data.Color;
+        ent.Fullbright = Data.FullBright;
+        ent.WorldUnitsPerPx = Data.Scale;
+        ent.DepthOffset = Data.ForegroundDepthOffset;
+        ent.JustifyHorizontal = Data.JustifyHorizontal;
+        ent.JustifyVertical = Data.JustifyVertical;
+        ent.ReorientMode = Data.ReorientMode;
 
-        Entity.Teleport(AbsOrigin, AbsRotation);
-        Entity.DispatchSpawn();
+        ent.Teleport(AbsOrigin, AbsRotation);
+        ent.DispatchSpawn();
+
+        Entity = ent;
     }
 
     public void Update(TextLine? data = null)
     {
-        if (Entity?.IsValid == true)
-            Entity.Remove();
-
-        if (data != null)
-            Data = data;
-
+        Remove();
+        if (data != null) Data = data;
         Spawn();
     }
 
@@ -67,8 +107,10 @@ public class WorldText : IDisposable
     {
         if (Entity?.IsValid == true)
             Entity.Remove();
-
+        if (BackgroundEntity?.IsValid == true)
+            BackgroundEntity.Remove();
         Entity = null;
+        BackgroundEntity = null;
     }
 
     protected virtual void Dispose(bool disposing)

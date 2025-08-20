@@ -3,7 +3,6 @@
         <DebugSymbols>False</DebugSymbols>
         <DebugType>None</DebugType>
         <GenerateDependencyFile>false</GenerateDependencyFile>
-        <PublishDir>./bin/K4-WorldText-API/plugins/K4-WorldText-API/</PublishDir>
     </PropertyGroup>
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
@@ -18,11 +17,8 @@
         </PackageReference>
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <Reference Include="K4WorldTextSharedApi">
-            <HintPath>../src-shared/K4-WorldText-SharedAPI.dll</HintPath>
+            <HintPath>../src-shared/bin/Debug/net8.0/K4-WorldText-SharedAPI.dll</HintPath>
             <Private>false</Private>
         </Reference>
     </ItemGroup>
-    <Target Name="CopyCustomFilesToPublishDirectory" AfterTargets="Publish">
-        <Copy SourceFiles="$(ProjectDir)$(ReferencePath)../src-shared/K4-WorldText-SharedAPI.dll" DestinationFolder="$(PublishDir)../../shared/K4-WorldText-SharedAPI/" />
-    </Target>
 </Project>
