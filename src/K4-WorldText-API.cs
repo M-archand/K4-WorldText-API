@@ -61,26 +61,34 @@ public class Plugin : BasePlugin
     public void LoadConfig(string mapName)
     {
         ClearData();
-        //if(loadedConfigs is not null) loadedConfigs.Clear();
+
         configFilePath = Path.Combine(ModuleDirectory, $"worldtext_{mapName}.json");
 
         if (!File.Exists(configFilePath))
+        {
+            loadedConfigs = new List<WorldTextConfig>();
             return;
+        }
 
         try
         {
             var json = File.ReadAllText(configFilePath);
-            loadedConfigs = JsonConvert.DeserializeObject<List<WorldTextConfig>>(json);
 
-            if (loadedConfigs == null)
-            {
-                Logger.LogWarning($"Failed to deserialize configuration file: {configFilePath}");
-                loadedConfigs = new List<WorldTextConfig>();
-            }
+            var configs = string.IsNullOrWhiteSpace(json)
+                ? new List<WorldTextConfig>()
+                : JsonConvert.DeserializeObject<List<WorldTextConfig>>(json) ?? new List<WorldTextConfig>();
+
+            loadedConfigs = configs;
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogWarning(ex, $"Failed to parse configuration file: {configFilePath}. Using empty list.");
+            loadedConfigs = new List<WorldTextConfig>();
         }
         catch (Exception ex)
         {
-            Logger.LogError($"Error while loading configuration file: {ex.Message}");
+            Logger.LogError(ex, $"Unexpected error while loading configuration file: {configFilePath}. Using empty list.");
+            loadedConfigs = new List<WorldTextConfig>();
         }
     }
 
@@ -274,7 +282,7 @@ public class Plugin : BasePlugin
         switch (placement)
         {
             case TextPlacement.Wall:
-                AbsOrigin = GetEyePosition(player, lines);
+                AbsOrigin = GetPlayerPosition(player, lines);
                 AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z + 90);
                 break;
             case TextPlacement.Floor:
@@ -303,13 +311,19 @@ public class Plugin : BasePlugin
         );
     }
 
-    public static Vector GetEyePosition(CCSPlayerController player, List<TextLine> lines)
+    public static Vector GetPlayerPosition(CCSPlayerController player, List<TextLine> lines)
     {
-        var absorigin = player.PlayerPawn.Value!.AbsOrigin!;
-        var camera = player.PlayerPawn.Value!.CameraServices!;
+        var feet = player.PlayerPawn.Value!.AbsOrigin!;
 
-        float totalHeight = lines.Sum(line => line.FontSize / 5);
-        return new Vector(absorigin.X, absorigin.Y, absorigin.Z + camera.OldPlayerViewOffsetZ + totalHeight);
+        static float StepFor(TextLine l) => MathF.Max(10f, l.FontSize / 3f);
+
+        float totalAdvance = lines.Sum(StepFor);
+        float usedHeight   = lines.Count > 0 ? totalAdvance - StepFor(lines[^1]) : 0f;
+
+        float lastStep     = lines.Count > 0 ? StepFor(lines[^1]) : 0f;
+        float bottomPad    = MathF.Max(8f, lastStep * 0.5f);
+
+        return new Vector(feet.X, feet.Y, feet.Z + usedHeight + bottomPad);
     }
 
     public string EntityFaceToDirection(float yaw)
