@@ -117,7 +117,9 @@ public class MultilineWorldText : IDisposable
         if (blockBg)
         {
             var cfg = Lines.First(l => l.BackgroundEnabled);
-            var refLine = Lines[0];
+            var refLine = Lines.FirstOrDefault(l => !l.BackgroundEnabled) ?? Lines[0];
+            int backgroundFontSize = refLine.FontSize + 3;
+            float blockBorderWidth = cfg.BackgroundBorderWidth;
 
             var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
                     ?? throw new Exception("Failed to create block background.");
@@ -136,20 +138,27 @@ public class MultilineWorldText : IDisposable
             if (desiredWidthChars > usedWidthChars && usedWidthChars > 0)
             {
                 float ratio = (float)desiredWidthChars / usedWidthChars;
-                bg.BackgroundBorderWidth *= ratio;
+                blockBorderWidth *= ratio;
             }
 
             bg.Enabled = true;
             bg.FontName = refLine.FontName;
-            bg.FontSize = refLine.FontSize;
+            bg.FontSize = backgroundFontSize;
             bg.Fullbright = true;
             bg.Color = cfg.BackgroundColor;
-            bg.WorldUnitsPerPx = refLine.Scale;
+            float requestedBgScale = refLine.Scale;
+            if (cfg.BackgroundScale > 0f && cfg.BackgroundScale < requestedBgScale)
+                requestedBgScale = cfg.BackgroundScale;
+
+            float maxBgScaleForStep = StepFor(refLine) / MathF.Max(1f, backgroundFontSize);
+            float effectiveBgScale = MathF.Min(requestedBgScale, maxBgScaleForStep);
+
+            bg.WorldUnitsPerPx = effectiveBgScale;
             bg.JustifyHorizontal = refLine.JustifyHorizontal;
             bg.JustifyVertical   = PointWorldTextJustifyVertical_t.POINT_WORLD_TEXT_JUSTIFY_VERTICAL_CENTER;
             bg.ReorientMode = refLine.ReorientMode;
             bg.DrawBackground = true;
-            bg.BackgroundBorderWidth  = cfg.BackgroundBorderWidth;
+            bg.BackgroundBorderWidth  = blockBorderWidth;
             bg.BackgroundBorderHeight = cfg.BackgroundBorderHeight;
             bg.BackgroundWorldToUV    = cfg.BackgroundWorldToUV;
             bg.DepthOffset = cfg.BackgroundDepthOffset;
