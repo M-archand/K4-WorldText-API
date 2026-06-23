@@ -127,11 +127,11 @@ public class Plugin : BasePlugin
 
     public class GameTextAPIHandler : IK4WorldTextSharedAPI
     {
-        public Plugin plugin;
+        private readonly Plugin _plugin;
 
         public GameTextAPIHandler(Plugin plugin)
         {
-            this.plugin = plugin;
+            _plugin = plugin;
         }
 
         public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle,
@@ -143,10 +143,10 @@ public class Plugin : BasePlugin
         public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle,
             bool saveConfig = false)
         {
-            var multilineWorldText = new MultilineWorldText(plugin, textLines, saveConfig);
+            var multilineWorldText = new MultilineWorldText(_plugin, textLines, saveConfig);
             multilineWorldText.Spawn(position, angle, placement);
 
-            plugin.multilineWorldTexts.Add(multilineWorldText);
+            _plugin.multilineWorldTexts.Add(multilineWorldText);
             return multilineWorldText.Id;
         }
 
@@ -159,7 +159,7 @@ public class Plugin : BasePlugin
         public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines,
             bool saveConfig = false)
         {
-            return plugin.SpawnMultipleLines(player, placement, textLines, saveConfig);
+            return _plugin.SpawnMultipleLines(player, placement, textLines, saveConfig);
         }
 
         public void UpdateWorldText(int id, TextLine? textLine = null)
@@ -169,7 +169,7 @@ public class Plugin : BasePlugin
 
         public void UpdateWorldText(int id, List<TextLine>? textLines = null)
         {
-            var target = plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -178,17 +178,17 @@ public class Plugin : BasePlugin
 
         public void RemoveWorldText(int id, bool removeFromConfig = true)
         {
-            var target = plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
             target.Dispose();
-            plugin.multilineWorldTexts.Remove(target);
+            _plugin.multilineWorldTexts.Remove(target);
         }
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
-            var target = plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -197,7 +197,7 @@ public class Plugin : BasePlugin
 
         public void TeleportWorldText(int id, Vector position, QAngle angle, bool modifyConfig = false)
         {
-            var target = plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -206,7 +206,7 @@ public class Plugin : BasePlugin
 
         public void RemoveAllTemporary()
         {
-            plugin.multilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList()
+            _plugin.multilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList()
                 .ForEach(multilineWorldText => multilineWorldText.Dispose());
         }
     }
