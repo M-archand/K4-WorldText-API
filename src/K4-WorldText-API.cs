@@ -35,6 +35,7 @@ public class Plugin : BasePlugin
     public override void Unload(bool hotReload)
     {
         ClearData();
+        MultilineWorldText.ResetIds();
     }
 
     public void ClearData()

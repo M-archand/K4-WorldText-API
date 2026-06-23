@@ -6,7 +6,9 @@ using K4WorldTextSharedAPI;
 
 public class MultilineWorldText : IDisposable
 {
-    private static int nextId = 1;
+    private static int nextId = 0;
+
+    internal static void ResetIds() => Interlocked.Exchange(ref nextId, 0);
 
     private bool disposed;
     public TextPlacement placement;
@@ -20,7 +22,7 @@ public class MultilineWorldText : IDisposable
     {
         Plugin = plugin;
 
-        Id = nextId++;
+        Id = Interlocked.Increment(ref nextId);
         Lines = lines;
         SaveToConfig = save;
     }
