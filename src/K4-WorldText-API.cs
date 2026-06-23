@@ -13,7 +13,7 @@ using Newtonsoft.Json;
 
 namespace K4ryuuCS2WorldTextAPI;
 
-[MinimumApiVersion(227)]
+[MinimumApiVersion(369)]
 public class Plugin : BasePlugin
 {
     public string configFilePath = string.Empty;
