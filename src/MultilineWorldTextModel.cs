@@ -3,7 +3,6 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using K4ryuuCS2WorldTextAPI;
 using K4WorldTextSharedAPI;
-using static K4ryuuCS2WorldTextAPI.Plugin;
 
 public class MultilineWorldText : IDisposable
 {
@@ -17,7 +16,7 @@ public class MultilineWorldText : IDisposable
     public QAngle? SpawnRotation;
     private CPointWorldText? _blockBackground;
 
-    public MultilineWorldText(Plugin plugin, List<TextLine> lines, bool save = false, bool fromConfig = false)
+    public MultilineWorldText(Plugin plugin, List<TextLine> lines, bool save = false)
     {
         Plugin = plugin;
 
@@ -55,20 +54,6 @@ public class MultilineWorldText : IDisposable
     public void Teleport(Vector absOrigin, QAngle absRotation, bool modifyConfig = false)
     {
         Remove();
-
-        if (modifyConfig && SaveToConfig)
-        {
-            var config = Plugin.loadedConfigs?.FirstOrDefault(c =>
-                c.Lines == Lines && c.AbsOrigin == Texts[0].AbsOrigin.ToString() &&
-                c.AbsRotation == Texts[0].AbsRotation.ToString());
-            if (config != null)
-            {
-                config.AbsOrigin = absOrigin.ToString();
-                config.AbsRotation = absRotation.ToString();
-                Plugin.SaveConfig();
-            }
-        }
-
         Spawn(absOrigin, absRotation, placement);
     }
 
@@ -239,9 +224,6 @@ public class MultilineWorldText : IDisposable
 
         SpawnOrigin = Texts[0].AbsOrigin;
         SpawnRotation = Texts[0].AbsRotation;
-
-        if (SaveToConfig)
-            SaveConfig();
     }
 
     public void Update(List<TextLine>? lines = null)
@@ -253,36 +235,6 @@ public class MultilineWorldText : IDisposable
 
         if (SpawnOrigin != null && SpawnRotation != null)
             Spawn(SpawnOrigin, SpawnRotation, placement);
-
-        if (SaveToConfig)
-            SaveConfig();
-    }
-
-    private void SaveConfig()
-    {
-        var config = new WorldTextConfig
-        {
-            Placement = placement,
-            Lines = Lines,
-            AbsOrigin = Texts[0].AbsOrigin.ToString(),
-            AbsRotation = Texts[0].AbsRotation.ToString()
-        };
-
-        var existingConfig = Plugin.loadedConfigs?.FirstOrDefault(c =>
-            c.Lines == Lines && c.AbsOrigin == Texts[0].AbsOrigin.ToString() &&
-            c.AbsRotation == Texts[0].AbsRotation.ToString());
-        if (existingConfig != null)
-        {
-            existingConfig.Lines = config.Lines;
-            existingConfig.AbsOrigin = config.AbsOrigin;
-            existingConfig.AbsRotation = config.AbsRotation;
-        }
-        else
-        {
-            Plugin.loadedConfigs?.Add(config);
-        }
-
-        Plugin.SaveConfig();
     }
 
     public void Remove()
