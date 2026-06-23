@@ -15,9 +15,9 @@ public class Plugin : BasePlugin
     internal void TrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.Add(worldText);
     internal void UntrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.Remove(worldText);
 
-    public override string ModuleName => "CS2 WorldText API";
-    public override string ModuleVersion => "1.2.6";
-    public override string ModuleAuthor => "K4ryuu (updated by Marchand)";
+    public override string ModuleName => "K4-WorldText-API";
+    public override string ModuleVersion => "1.3.0";
+    public override string ModuleAuthor => "K4ryuu, Marchand";
 
     public static PluginCapability<IK4WorldTextSharedAPI> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");
 
