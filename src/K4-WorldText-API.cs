@@ -25,6 +25,8 @@ public class Plugin : BasePlugin
     {
         Capabilities.RegisterPluginCapability(Capability_SharedAPI, () => new GameTextAPIHandler(this));
 
+        RegisterListener<Listeners.OnMapEnd>(ClearData);
+
         RegisterEventHandler((EventRoundStart @event, GameEventInfo info) =>
         {
             _multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Update());
