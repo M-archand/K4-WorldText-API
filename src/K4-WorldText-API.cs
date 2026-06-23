@@ -9,7 +9,12 @@ namespace K4ryuuCS2WorldTextAPI;
 [MinimumApiVersion(369)]
 public class Plugin : BasePlugin
 {
-    public List<MultilineWorldText> multilineWorldTexts = new();
+    private readonly List<MultilineWorldText> _multilineWorldTexts = new();
+    public IReadOnlyList<MultilineWorldText> MultilineWorldTexts => _multilineWorldTexts;
+
+    internal void TrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.Add(worldText);
+    internal void UntrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.Remove(worldText);
+
     public override string ModuleName => "CS2 WorldText API";
     public override string ModuleVersion => "1.2.6";
     public override string ModuleAuthor => "K4ryuu (updated by Marchand)";
@@ -22,7 +27,7 @@ public class Plugin : BasePlugin
 
         RegisterEventHandler((EventRoundStart @event, GameEventInfo info) =>
         {
-            multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Update());
+            _multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Update());
             return HookResult.Continue;
         });
     }
@@ -34,8 +39,8 @@ public class Plugin : BasePlugin
 
     public void ClearData()
     {
-        multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Dispose());
-        multilineWorldTexts.Clear();
+        _multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Dispose());
+        _multilineWorldTexts.Clear();
     }
 
     public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines, bool saveConfig = false)
@@ -61,7 +66,7 @@ public class Plugin : BasePlugin
         var multilineWorldText = new MultilineWorldText(this, lines, saveConfig);
         multilineWorldText.Spawn(AbsOrigin + offset, AbsRotation, placement);
 
-        multilineWorldTexts.Add(multilineWorldText);
+        _multilineWorldTexts.Add(multilineWorldText);
         return multilineWorldText.Id;
     }
 
@@ -146,7 +151,7 @@ public class Plugin : BasePlugin
             var multilineWorldText = new MultilineWorldText(_plugin, textLines, saveConfig);
             multilineWorldText.Spawn(position, angle, placement);
 
-            _plugin.multilineWorldTexts.Add(multilineWorldText);
+            _plugin.TrackWorldText(multilineWorldText);
             return multilineWorldText.Id;
         }
 
@@ -169,7 +174,7 @@ public class Plugin : BasePlugin
 
         public void UpdateWorldText(int id, List<TextLine>? textLines = null)
         {
-            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -178,17 +183,17 @@ public class Plugin : BasePlugin
 
         public void RemoveWorldText(int id, bool removeFromConfig = true)
         {
-            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
             target.Dispose();
-            _plugin.multilineWorldTexts.Remove(target);
+            _plugin.UntrackWorldText(target);
         }
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
-            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -197,7 +202,7 @@ public class Plugin : BasePlugin
 
         public void TeleportWorldText(int id, Vector position, QAngle angle, bool modifyConfig = false)
         {
-            var target = _plugin.multilineWorldTexts.Find(wt => wt.Id == id);
+            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -206,7 +211,7 @@ public class Plugin : BasePlugin
 
         public void RemoveAllTemporary()
         {
-            _plugin.multilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList()
+            _plugin.MultilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList()
                 .ForEach(multilineWorldText => multilineWorldText.Dispose());
         }
     }
