@@ -7,6 +7,8 @@ using K4WorldTextSharedAPI;
 
 public class WorldText : IDisposable
 {
+    private const string SchemaClass = "CPointWorldText";
+
     private bool disposed;
     public Plugin Plugin;
 
@@ -43,6 +45,67 @@ public class WorldText : IDisposable
         return sb.ToString();
     }
 
+    private static string BackgroundText(TextLine data) =>
+        data.BackgroundHideText ? MaskLine(data.Text) : data.Text;
+
+    private static void ApplyForeground(CPointWorldText ent, TextLine data)
+    {
+        ent.MessageText = data.Text;
+        ent.Enabled = true;
+        ent.FontName = data.FontName;
+        ent.FontSize = data.FontSize;
+        ent.Color = data.Color;
+        ent.Fullbright = data.FullBright;
+        ent.WorldUnitsPerPx = data.Scale;
+        ent.DepthOffset = data.ForegroundDepthOffset;
+        ent.JustifyHorizontal = data.JustifyHorizontal;
+        ent.JustifyVertical = data.JustifyVertical;
+        ent.ReorientMode = data.ReorientMode;
+    }
+
+    private static void ApplyBackground(CPointWorldText bg, TextLine data)
+    {
+        bg.MessageText = BackgroundText(data);
+        bg.Enabled = true;
+        bg.FontName = data.FontName;
+        bg.FontSize = data.FontSize;
+        bg.Fullbright = data.BackgroundFullBright;
+        bg.Color = data.BackgroundColor;
+        bg.WorldUnitsPerPx = data.BackgroundScale;
+        bg.DepthOffset = data.BackgroundDepthOffset;
+        bg.JustifyHorizontal = data.JustifyHorizontal;
+        bg.JustifyVertical = data.JustifyVertical;
+        bg.ReorientMode = data.ReorientMode;
+
+        bg.DrawBackground = true;
+        bg.BackgroundBorderWidth  = data.BackgroundBorderWidth;
+        bg.BackgroundBorderHeight = data.BackgroundBorderHeight;
+        bg.BackgroundWorldToUV    = data.BackgroundWorldToUV;
+    }
+
+    internal static void NotifyChanged(CPointWorldText ent, bool background)
+    {
+        Utilities.SetStateChanged(ent, SchemaClass, "m_messageText");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_bEnabled");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_FontName");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_flFontSize");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_Color");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_bFullbright");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_flWorldUnitsPerPx");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_flDepthOffset");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_nJustifyHorizontal");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_nJustifyVertical");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_nReorientMode");
+
+        if (!background)
+            return;
+
+        Utilities.SetStateChanged(ent, SchemaClass, "m_bDrawBackground");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_flBackgroundBorderWidth");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_flBackgroundBorderHeight");
+        Utilities.SetStateChanged(ent, SchemaClass, "m_flBackgroundWorldToUV");
+    }
+
     public void Spawn()
     {
         if (Data.BackgroundEnabled)
@@ -50,23 +113,7 @@ public class WorldText : IDisposable
             var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
                     ?? throw new Exception("Failed to create background point_worldtext Entity.");
 
-            bg.MessageText = Data.BackgroundHideText ? MaskLine(Data.Text) : Data.Text;
-
-            bg.Enabled = true;
-            bg.FontName = Data.FontName;
-            bg.FontSize = Data.FontSize;
-            bg.Fullbright = Data.BackgroundFullBright;
-            bg.Color = Data.BackgroundColor;
-            bg.WorldUnitsPerPx = Data.BackgroundScale;
-            bg.DepthOffset = Data.BackgroundDepthOffset;
-            bg.JustifyHorizontal = Data.JustifyHorizontal;
-            bg.JustifyVertical = Data.JustifyVertical;
-            bg.ReorientMode = Data.ReorientMode;
-
-            bg.DrawBackground = true;
-            bg.BackgroundBorderWidth  = Data.BackgroundBorderWidth;
-            bg.BackgroundBorderHeight = Data.BackgroundBorderHeight;
-            bg.BackgroundWorldToUV    = Data.BackgroundWorldToUV;
+            ApplyBackground(bg, Data);
 
             bg.Teleport(AbsOrigin, AbsRotation);
             bg.DispatchSpawn();
@@ -78,17 +125,7 @@ public class WorldText : IDisposable
         if (ent is null)
             throw new Exception("Failed to create point_worldtext Entity.");
 
-        ent.MessageText = Data.Text;
-        ent.Enabled = true;
-        ent.FontName = Data.FontName;
-        ent.FontSize = Data.FontSize;
-        ent.Color = Data.Color;
-        ent.Fullbright = Data.FullBright;
-        ent.WorldUnitsPerPx = Data.Scale;
-        ent.DepthOffset = Data.ForegroundDepthOffset;
-        ent.JustifyHorizontal = Data.JustifyHorizontal;
-        ent.JustifyVertical = Data.JustifyVertical;
-        ent.ReorientMode = Data.ReorientMode;
+        ApplyForeground(ent, Data);
 
         ent.Teleport(AbsOrigin, AbsRotation);
         ent.DispatchSpawn();
@@ -96,8 +133,42 @@ public class WorldText : IDisposable
         Entity = ent;
     }
 
+    public bool CanUpdateInPlace(TextLine? data = null)
+    {
+        var next = data ?? Data;
+
+        if (Entity?.IsValid != true)
+            return false;
+
+        bool hasBackground = BackgroundEntity?.IsValid == true;
+        return next.BackgroundEnabled == hasBackground;
+    }
+
+    public bool TryUpdateInPlace(TextLine? data = null)
+    {
+        if (!CanUpdateInPlace(data))
+            return false;
+
+        if (data != null)
+            Data = data;
+
+        ApplyForeground(Entity!, Data);
+        NotifyChanged(Entity!, background: false);
+
+        if (BackgroundEntity is not null)
+        {
+            ApplyBackground(BackgroundEntity, Data);
+            NotifyChanged(BackgroundEntity, background: true);
+        }
+
+        return true;
+    }
+
     public void Update(TextLine? data = null)
     {
+        if (TryUpdateInPlace(data))
+            return;
+
         Remove();
         if (data != null) Data = data;
         Spawn();

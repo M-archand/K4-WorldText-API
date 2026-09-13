@@ -53,6 +53,14 @@ public class MultilineWorldText : IDisposable
         BackgroundEnabled = false
     };
 
+    private static bool UsesBlockBackground(List<TextLine> lines) =>
+        lines.Any(l => l.BackgroundEnabled && l.BackgroundAsSingleBlock);
+
+    private static TextLine ForegroundLine(TextLine line, bool blockBg) =>
+        blockBg && line.BackgroundEnabled ? CloneWithoutBackground(line) : line;
+
+    private static float StepFor(TextLine l) => MathF.Max(10f, l.FontSize / 3f);
+
     public void Teleport(Vector absOrigin, QAngle absRotation, bool modifyConfig = false)
     {
         Remove();
@@ -89,66 +97,69 @@ public class MultilineWorldText : IDisposable
         return string.Join('\n', Enumerable.Repeat(row, lineCount));
     }
 
+    private static void ApplyBlockBackground(CPointWorldText bg, List<TextLine> lines)
+    {
+        var cfg = lines.First(l => l.BackgroundEnabled);
+        var refLine = lines.FirstOrDefault(l => !l.BackgroundEnabled) ?? lines[0];
+        int backgroundFontSize = refLine.FontSize + 3;
+        float blockBorderWidth = cfg.BackgroundBorderWidth;
+
+        var foregroundTexts = lines.Select(l => l.Text).ToList();
+        int usedWidthChars, desiredWidthChars;
+        bg.MessageText = MakeBlockMask(
+            foregroundTexts,
+            cfg.BackgroundMaxCharsPerLine,
+            cfg.BackgroundWidthInflation,
+            cfg.BackgroundPadChars,
+            out usedWidthChars,
+            out desiredWidthChars
+        );
+
+        if (desiredWidthChars > usedWidthChars && usedWidthChars > 0)
+        {
+            float ratio = (float)desiredWidthChars / usedWidthChars;
+            blockBorderWidth *= ratio;
+        }
+
+        bg.Enabled = true;
+        bg.FontName = refLine.FontName;
+        bg.FontSize = backgroundFontSize;
+        bg.Fullbright = true;
+        bg.Color = cfg.BackgroundColor;
+        float requestedBgScale = refLine.Scale;
+        if (cfg.BackgroundScale > 0f && cfg.BackgroundScale < requestedBgScale)
+            requestedBgScale = cfg.BackgroundScale;
+
+        float maxBgScaleForStep = StepFor(refLine) / MathF.Max(1f, backgroundFontSize);
+        float effectiveBgScale = MathF.Min(requestedBgScale, maxBgScaleForStep);
+
+        bg.WorldUnitsPerPx = effectiveBgScale;
+        bg.JustifyHorizontal = refLine.JustifyHorizontal;
+        bg.JustifyVertical   = PointWorldTextJustifyVertical_t.POINT_WORLD_TEXT_JUSTIFY_VERTICAL_CENTER;
+        bg.ReorientMode = refLine.ReorientMode;
+        bg.DrawBackground = true;
+        bg.BackgroundBorderWidth  = blockBorderWidth;
+        bg.BackgroundBorderHeight = cfg.BackgroundBorderHeight;
+        bg.BackgroundWorldToUV    = cfg.BackgroundWorldToUV;
+        bg.DepthOffset = cfg.BackgroundDepthOffset;
+    }
+
     public void Spawn(Vector absOrigin, QAngle absRotation, TextPlacement placement)
     {
         this.placement = placement;
-
-        static float StepFor(TextLine l) => MathF.Max(10f, l.FontSize / 3f);
 
         float totalAdvance = Lines.Sum(StepFor);
         float usedHeight = Lines.Count > 0 ? totalAdvance - StepFor(Lines[^1]) : 0f;
         float halfHeight = usedHeight * 0.5f;
 
-        bool blockBg = Lines.Any(l => l.BackgroundEnabled && l.BackgroundAsSingleBlock);
+        bool blockBg = UsesBlockBackground(Lines);
 
         if (blockBg)
         {
-            var cfg = Lines.First(l => l.BackgroundEnabled);
-            var refLine = Lines.FirstOrDefault(l => !l.BackgroundEnabled) ?? Lines[0];
-            int backgroundFontSize = refLine.FontSize + 3;
-            float blockBorderWidth = cfg.BackgroundBorderWidth;
-
             var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
                     ?? throw new Exception("Failed to create block background.");
 
-            var foregroundTexts = Lines.Select(l => l.Text).ToList();
-            int usedWidthChars, desiredWidthChars;
-            bg.MessageText = MakeBlockMask(
-                foregroundTexts,
-                cfg.BackgroundMaxCharsPerLine,
-                cfg.BackgroundWidthInflation,
-                cfg.BackgroundPadChars,
-                out usedWidthChars,
-                out desiredWidthChars
-            );
-
-            if (desiredWidthChars > usedWidthChars && usedWidthChars > 0)
-            {
-                float ratio = (float)desiredWidthChars / usedWidthChars;
-                blockBorderWidth *= ratio;
-            }
-
-            bg.Enabled = true;
-            bg.FontName = refLine.FontName;
-            bg.FontSize = backgroundFontSize;
-            bg.Fullbright = true;
-            bg.Color = cfg.BackgroundColor;
-            float requestedBgScale = refLine.Scale;
-            if (cfg.BackgroundScale > 0f && cfg.BackgroundScale < requestedBgScale)
-                requestedBgScale = cfg.BackgroundScale;
-
-            float maxBgScaleForStep = StepFor(refLine) / MathF.Max(1f, backgroundFontSize);
-            float effectiveBgScale = MathF.Min(requestedBgScale, maxBgScaleForStep);
-
-            bg.WorldUnitsPerPx = effectiveBgScale;
-            bg.JustifyHorizontal = refLine.JustifyHorizontal;
-            bg.JustifyVertical   = PointWorldTextJustifyVertical_t.POINT_WORLD_TEXT_JUSTIFY_VERTICAL_CENTER;
-            bg.ReorientMode = refLine.ReorientMode;
-            bg.DrawBackground = true;
-            bg.BackgroundBorderWidth  = blockBorderWidth;
-            bg.BackgroundBorderHeight = cfg.BackgroundBorderHeight;
-            bg.BackgroundWorldToUV    = cfg.BackgroundWorldToUV;
-            bg.DepthOffset = cfg.BackgroundDepthOffset;
+            ApplyBlockBackground(bg, Lines);
 
             // Center the background
             Vector bgOrigin;
@@ -177,24 +188,7 @@ public class MultilineWorldText : IDisposable
 
         foreach (var line in Lines)
         {
-            TextLine ln = line;
-            if (blockBg && line.BackgroundEnabled)
-            {
-                ln = new TextLine
-                {
-                    Text = line.Text,
-                    Color = line.Color,
-                    FontSize = line.FontSize,
-                    FontName = line.FontName,
-                    FullBright = line.FullBright,
-                    Scale = line.Scale,
-                    JustifyHorizontal = line.JustifyHorizontal,
-                    JustifyVertical = line.JustifyVertical,
-                    ReorientMode = line.ReorientMode,
-                    ForegroundDepthOffset = line.ForegroundDepthOffset,
-                    BackgroundEnabled = false
-                };
-            }
+            TextLine ln = ForegroundLine(line, blockBg);
 
             switch (placement)
             {
@@ -228,8 +222,68 @@ public class MultilineWorldText : IDisposable
         SpawnRotation = Texts[0].AbsRotation;
     }
 
+    private bool CanUpdateInPlace(List<TextLine>? lines)
+    {
+        var next = lines ?? Lines;
+
+        if (next.Count == 0 || next.Count != Lines.Count || Texts.Count != Lines.Count)
+            return false;
+
+        bool blockBg = UsesBlockBackground(Lines);
+        if (blockBg != UsesBlockBackground(next))
+            return false;
+
+        if (blockBg && _blockBackground?.IsValid != true)
+            return false;
+
+        for (int i = 0; i < next.Count; i++)
+        {
+            var prev = Lines[i];
+            var cur = next[i];
+
+            if (prev.FontSize != cur.FontSize)
+                return false;
+            if (prev.BackgroundEnabled != cur.BackgroundEnabled)
+                return false;
+            if (prev.BackgroundAsSingleBlock != cur.BackgroundAsSingleBlock)
+                return false;
+
+            if (!Texts[i].CanUpdateInPlace(ForegroundLine(cur, blockBg)))
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool TryUpdateInPlace(List<TextLine>? lines)
+    {
+        if (!CanUpdateInPlace(lines))
+            return false;
+
+        var next = lines ?? Lines;
+        bool blockBg = UsesBlockBackground(next);
+
+        for (int i = 0; i < next.Count; i++)
+        {
+            if (!Texts[i].TryUpdateInPlace(ForegroundLine(next[i], blockBg)))
+                return false;
+        }
+
+        if (blockBg)
+        {
+            ApplyBlockBackground(_blockBackground!, next);
+            WorldText.NotifyChanged(_blockBackground!, background: true);
+        }
+
+        Lines = next;
+        return true;
+    }
+
     public void Update(List<TextLine>? lines = null)
     {
+        if (TryUpdateInPlace(lines))
+            return;
+
         Remove();
 
         if (lines != null)
@@ -243,6 +297,7 @@ public class MultilineWorldText : IDisposable
     {
         if (Texts.Count > 0)
             Texts.ForEach(text => text.Remove());
+        Texts.Clear();
         if (_blockBackground?.IsValid == true)
             _blockBackground.Remove();
         _blockBackground = null;
