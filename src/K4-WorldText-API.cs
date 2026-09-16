@@ -206,10 +206,11 @@ public class Plugin : BasePlugin
                 throw new ArgumentOutOfRangeException(nameof(placement), placement, "Unknown TextPlacement value.");
         }
 
-        private static void ValidateTransform(Vector? position, QAngle? angle)
+        private static (Vector Position, QAngle Angle) CopyTransform(Vector? position, QAngle? angle)
         {
             ArgumentNullException.ThrowIfNull(position);
             ArgumentNullException.ThrowIfNull(angle);
+            return (new Vector(position.X, position.Y, position.Z), new QAngle(angle.X, angle.Y, angle.Z));
         }
 
         public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle)
@@ -221,7 +222,7 @@ public class Plugin : BasePlugin
         public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle)
         {
             ValidatePlacement(placement);
-            ValidateTransform(position, angle);
+            var (spawnPosition, spawnAngle) = CopyTransform(position, angle);
             var lines = ValidateLines(textLines, nameof(textLines));
 
             var multilineWorldText = new MultilineWorldText(_plugin, lines);
@@ -232,7 +233,7 @@ public class Plugin : BasePlugin
                 if (multilineWorldText.IsDisposed)
                     return;
 
-                multilineWorldText.Spawn(position, angle, placement);
+                multilineWorldText.Spawn(spawnPosition, spawnAngle, placement);
             });
 
             return multilineWorldText.Id;
@@ -295,7 +296,7 @@ public class Plugin : BasePlugin
 
         public void TeleportWorldText(int id, Vector position, QAngle angle)
         {
-            ValidateTransform(position, angle);
+            var (newPosition, newAngle) = CopyTransform(position, angle);
             var target = RequireWorldText(id);
 
             _plugin.OnGameThread($"TeleportWorldText({id})", () =>
@@ -303,7 +304,7 @@ public class Plugin : BasePlugin
                 if (target.IsDisposed)
                     return;
 
-                target.Teleport(position, angle);
+                target.Teleport(newPosition, newAngle);
             });
         }
 

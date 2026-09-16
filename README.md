@@ -115,6 +115,7 @@ Every method except `GetWorldTextLineEntities` is safe to call from any thread -
 - The call returns before the text exists in the world. `AddWorldText` still returns its id immediately, and that id is valid right away.
 - Queued work runs in call order, so `UpdateWorldText` / `RemoveWorldText` on a freshly returned id behave as written.
 - `AddWorldTextAtPlayer` reads the player's position at world-update time, not at call time.
+- `position` and `angle` are copied at the call. Passing an entity-backed `Vector`/`QAngle` such as `pawn.AbsOrigin` is safe; the plugin never reads the caller's instance again.
 
 `GetWorldTextLineEntities` returns raw entity pointers, which cannot be marshalled. Call it from a command handler, a game event handler, a listener, or inside your own `Server.NextWorldUpdate` callback.
 
