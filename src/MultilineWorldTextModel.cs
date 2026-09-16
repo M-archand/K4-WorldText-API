@@ -155,6 +155,19 @@ public class MultilineWorldText : IDisposable
     {
         ThrowIfDisposed();
 
+        try
+        {
+            SpawnEntities(absOrigin, absRotation, placement);
+        }
+        catch
+        {
+            Remove();
+            throw;
+        }
+    }
+
+    private void SpawnEntities(Vector absOrigin, QAngle absRotation, TextPlacement placement)
+    {
         this.placement = placement;
 
         float totalAdvance = Lines.Sum(StepFor);
@@ -166,7 +179,7 @@ public class MultilineWorldText : IDisposable
         if (blockBg)
         {
             var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
-                    ?? throw new Exception("Failed to create block background.");
+                    ?? throw new InvalidOperationException("Failed to create block background.");
 
             ApplyBlockBackground(bg, Lines);
 

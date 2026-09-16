@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Capabilities;
 using CounterStrikeSharp.API.Modules.Utils;
 using K4WorldTextSharedAPI;
+using Microsoft.Extensions.Logging;
 
 namespace K4ryuuCS2WorldTextAPI;
 
@@ -20,7 +21,17 @@ public class Plugin : BasePlugin
     internal MultilineWorldText? FindWorldText(int id) =>
         _multilineWorldTexts.TryGetValue(id, out var worldText) ? worldText : null;
 
-    internal static void OnGameThread(Action action) => Server.NextWorldUpdate(action);
+    internal void OnGameThread(string operation, Action action) => Server.NextWorldUpdate(() =>
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "{Operation} failed on the game thread.", operation);
+        }
+    });
 
     public override string ModuleName => "K4-WorldText-API";
     public override string ModuleVersion => "2.0.0";
@@ -37,7 +48,16 @@ public class Plugin : BasePlugin
         RegisterEventHandler((EventRoundStart @event, GameEventInfo info) =>
         {
             foreach (var multilineWorldText in _multilineWorldTexts.Values)
-                multilineWorldText.Update();
+            {
+                try
+                {
+                    multilineWorldText.Update();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Round-start update of WorldText {Id} failed.", multilineWorldText.Id);
+                }
+            }
             return HookResult.Continue;
         });
     }
@@ -60,7 +80,7 @@ public class Plugin : BasePlugin
         var multilineWorldText = new MultilineWorldText(this, lines);
         TrackWorldText(multilineWorldText);
 
-        OnGameThread(() =>
+        OnGameThread($"AddWorldTextAtPlayer({multilineWorldText.Id})", () =>
         {
             if (multilineWorldText.IsDisposed)
                 return;
@@ -160,6 +180,9 @@ public class Plugin : BasePlugin
             _plugin = plugin;
         }
 
+        private MultilineWorldText RequireWorldText(int id) =>
+            _plugin.FindWorldText(id) ?? throw new KeyNotFoundException($"WorldText with ID {id} not found.");
+
         public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle)
         {
             return AddWorldText(placement, new List<TextLine> { textLine }, position, angle);
@@ -170,7 +193,7 @@ public class Plugin : BasePlugin
             var multilineWorldText = new MultilineWorldText(_plugin, textLines);
             _plugin.TrackWorldText(multilineWorldText);
 
-            OnGameThread(() =>
+            _plugin.OnGameThread($"AddWorldText({multilineWorldText.Id})", () =>
             {
                 if (multilineWorldText.IsDisposed)
                     return;
@@ -198,11 +221,9 @@ public class Plugin : BasePlugin
 
         public void UpdateWorldText(int id, List<TextLine>? textLines = null)
         {
-            var target = _plugin.FindWorldText(id);
-            if (target is null)
-                throw new Exception($"WorldText with ID {id} not found.");
+            var target = RequireWorldText(id);
 
-            OnGameThread(() =>
+            _plugin.OnGameThread($"UpdateWorldText({id})", () =>
             {
                 if (target.IsDisposed)
                     return;
@@ -213,30 +234,24 @@ public class Plugin : BasePlugin
 
         public void RemoveWorldText(int id)
         {
-            var target = _plugin.FindWorldText(id);
-            if (target is null)
-                throw new Exception($"WorldText with ID {id} not found.");
+            var target = RequireWorldText(id);
 
             _plugin.UntrackWorldText(target);
-            OnGameThread(target.Dispose);
+            _plugin.OnGameThread($"RemoveWorldText({id})", target.Dispose);
         }
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
-            var target = _plugin.FindWorldText(id);
-            if (target is null)
-                throw new Exception($"WorldText with ID {id} not found.");
+            var target = RequireWorldText(id);
 
             return target.Texts.Where(t => t.Entity != null).Select(t => t.Entity).Cast<CPointWorldText>().ToList();
         }
 
         public void TeleportWorldText(int id, Vector position, QAngle angle)
         {
-            var target = _plugin.FindWorldText(id);
-            if (target is null)
-                throw new Exception($"WorldText with ID {id} not found.");
+            var target = RequireWorldText(id);
 
-            OnGameThread(() =>
+            _plugin.OnGameThread($"TeleportWorldText({id})", () =>
             {
                 if (target.IsDisposed)
                     return;
@@ -251,7 +266,7 @@ public class Plugin : BasePlugin
             foreach (var multilineWorldText in targets)
                 _plugin.UntrackWorldText(multilineWorldText);
 
-            OnGameThread(() =>
+            _plugin.OnGameThread("RemoveAll", () =>
             {
                 foreach (var multilineWorldText in targets)
                     multilineWorldText.Dispose();

@@ -126,7 +126,7 @@ public class WorldText : IDisposable
         if (Data.BackgroundEnabled)
         {
             var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
-                    ?? throw new Exception("Failed to create background point_worldtext Entity.");
+                    ?? throw new InvalidOperationException("Failed to create background point_worldtext Entity.");
 
             ApplyBackground(bg, Data);
 
@@ -138,7 +138,10 @@ public class WorldText : IDisposable
 
         var ent = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext");
         if (ent is null)
-            throw new Exception("Failed to create point_worldtext Entity.");
+        {
+            Remove();
+            throw new InvalidOperationException("Failed to create point_worldtext Entity.");
+        }
 
         ApplyForeground(ent, Data);
 
