@@ -36,6 +36,21 @@ public class WorldText : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    internal const int MessageTextByteBudget = 512;
+
+    internal static string ClampToMessageTextBudget(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        if (Encoding.UTF8.GetByteCount(text) <= MessageTextByteBudget)
+            return text;
+
+        Span<byte> buffer = stackalloc byte[MessageTextByteBudget];
+        Encoding.UTF8.GetEncoder().Convert(text, buffer, flush: true, out int charsUsed, out _, out _);
+        return text[..charsUsed];
+    }
+
     private static string MaskLine(string text)
     {
         const char nbsp = '\u00A0';
@@ -50,7 +65,7 @@ public class WorldText : IDisposable
 
     private static void ApplyForeground(CPointWorldText ent, TextLine data)
     {
-        ent.MessageText = data.Text;
+        ent.MessageText = ClampToMessageTextBudget(data.Text);
         ent.Enabled = true;
         ent.FontName = data.FontName;
         ent.FontSize = data.FontSize;
@@ -65,7 +80,7 @@ public class WorldText : IDisposable
 
     private static void ApplyBackground(CPointWorldText bg, TextLine data)
     {
-        bg.MessageText = BackgroundText(data);
+        bg.MessageText = ClampToMessageTextBudget(BackgroundText(data));
         bg.Enabled = true;
         bg.FontName = data.FontName;
         bg.FontSize = data.FontSize;

@@ -25,6 +25,8 @@ public class TextLine
 
     public PointWorldTextReorientMode_t ReorientMode = PointWorldTextReorientMode_t.POINT_WORLD_TEXT_REORIENT_NONE;
     public float Scale = 0.4f;
+
+    /// <summary>Line text. Text longer than 512 UTF-8 bytes is truncated on a character boundary before it reaches the entity.</summary>
     public required string Text;
 
     /// <summary>Enable the extra background entity behind this line.</summary>

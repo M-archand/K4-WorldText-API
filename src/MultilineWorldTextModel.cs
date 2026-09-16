@@ -93,7 +93,7 @@ public class MultilineWorldText : IDisposable
             Math.Min(maxCharsPerLineCap, (int)Math.Ceiling(longest * inflation) + (padChars * 2)));
 
         int newlineBytes     = lineCount - 1;
-        int totalByteBudget  = 512;
+        int totalByteBudget  = WorldText.MessageTextByteBudget;
         int budgetForNbsp    = Math.Max(1, totalByteBudget - newlineBytes);
 
         int safePerLine = Math.Max(1, budgetForNbsp / (lineCount * bytesPerChar));
@@ -101,7 +101,7 @@ public class MultilineWorldText : IDisposable
         usedWidthChars = Math.Min(desiredWidthChars, safePerLine);
 
         string row = new string(nbsp, usedWidthChars);
-        return string.Join('\n', Enumerable.Repeat(row, lineCount));
+        return WorldText.ClampToMessageTextBudget(string.Join('\n', Enumerable.Repeat(row, lineCount)));
     }
 
     private static void ApplyBlockBackground(CPointWorldText bg, List<TextLine> lines)
