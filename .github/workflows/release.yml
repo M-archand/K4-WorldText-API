@@ -46,28 +46,34 @@ jobs:
           PLUGIN_OUT="BuildOutput/plugins/K4-WorldText-API"
           SHARED_OUT="BuildOutput/shared/K4-WorldText-SharedAPI"
 
-          if [ ! -f "${PLUGIN_OUT}/K4-WorldText-API.dll" ]; then
-            echo "::error::K4-WorldText-API.dll not found in ${PLUGIN_OUT} after build"
-            exit 1
-          fi
-          if [ ! -f "${SHARED_OUT}/K4-WorldText-SharedAPI.dll" ]; then
-            echo "::error::K4-WorldText-SharedAPI.dll not found in ${SHARED_OUT} after build"
-            exit 1
-          fi
+          for f in K4-WorldText-API.dll K4-WorldText-API.pdb K4-WorldText-API.deps.json; do
+            if [ ! -f "${PLUGIN_OUT}/${f}" ]; then
+              echo "::error::${f} not found in ${PLUGIN_OUT} after build"
+              exit 1
+            fi
+          done
+          for f in K4-WorldText-SharedAPI.dll K4-WorldText-SharedAPI.pdb K4-WorldText-SharedAPI.deps.json K4-WorldText-SharedAPI.xml; do
+            if [ ! -f "${SHARED_OUT}/${f}" ]; then
+              echo "::error::${f} not found in ${SHARED_OUT} after build"
+              exit 1
+            fi
+          done
 
           # CSS install layout: archive root holds K4-WorldText-API-v{version}/
-          #   addons/counterstrikesharp/plugins/K4-WorldText-API/  -> plugin dll + runtime deps
-          #   addons/counterstrikesharp/shared/K4-WorldText-SharedAPI/ -> API dll
+          #   addons/counterstrikesharp/plugins/K4-WorldText-API/  -> plugin dll, pdb, deps.json
+          #   addons/counterstrikesharp/shared/K4-WorldText-SharedAPI/ -> API dll, pdb, deps.json, XML docs
           rm -rf package
           ROOT="package/${FOLDER}"
           PLUGIN_DIR="${ROOT}/addons/counterstrikesharp/plugins/K4-WorldText-API"
           SHARED_DIR="${ROOT}/addons/counterstrikesharp/shared/K4-WorldText-SharedAPI"
           mkdir -p "${PLUGIN_DIR}" "${SHARED_DIR}"
 
-          cp "${PLUGIN_OUT}"/*.dll "${PLUGIN_DIR}/"
-          cp "${PLUGIN_OUT}/K4-WorldText-API.deps.json" "${PLUGIN_DIR}/"
+          # Everything the build produced: dll, pdb, deps.json, and (shared only) the XML doc file
+          cp -r "${PLUGIN_OUT}/." "${PLUGIN_DIR}/"
+          cp -r "${SHARED_OUT}/." "${SHARED_DIR}/"
 
-          cp "${SHARED_OUT}/K4-WorldText-SharedAPI.dll" "${SHARED_DIR}/"
+          echo "Packaged contents:"
+          find "${ROOT}" -type f | sort
 
           cd package
           zip -r "../${FOLDER}.zip" "${FOLDER}"
@@ -135,14 +141,31 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
 
-          NOTES="Release ${TAG}"
+          # Pull this version's section out of CHANGELOG.md (header line excluded).
+          # Matches both "## [x.y.z](...)" and "### [x.y.z](...)" style headings.
+          NOTES_FILE="release_notes.md"
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VERSION" '
+              found && /^##+ \[/ { exit }
+              $0 ~ ("^##+ \\[" ver "\\]") { found=1; next }
+              found { print }
+            ' CHANGELOG.md > "$NOTES_FILE"
+          else
+            : > "$NOTES_FILE"
+          fi
+
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "::warning::No CHANGELOG.md entry found for ${VERSION}, using default release notes"
+            echo "Release ${TAG}" > "$NOTES_FILE"
+          fi
+
           if [ -n "$PREV_TAG" ]; then
-            NOTES="${NOTES}"$'\n\n'"**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
+            printf '\n\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' "${{ github.repository }}" "$PREV_TAG" "$TAG" >> "$NOTES_FILE"
           fi
 
           gh release create "$TAG" \
             --title "$TITLE" \
-            --notes "$NOTES" \
+            --notes-file "$NOTES_FILE" \
             $PRERELEASE_FLAG \
             "${{ steps.zip.outputs.artifact }}"
 
