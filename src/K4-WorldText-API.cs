@@ -268,12 +268,7 @@ public class Plugin : BasePlugin
             if (_scopes.TryGetValue(name, out var existing))
                 return existing;
 
-            var scope = new GameTextAPIHandler(_plugin, name);
-            var winner = _scopes.GetOrAdd(name, scope);
-            if (ReferenceEquals(winner, scope))
-                _plugin.Logger.LogInformation("Consumer {Owner} acquired its WorldText scope.", name);
-
-            return winner;
+            return _scopes.GetOrAdd(name, new GameTextAPIHandler(_plugin, name));
         }
     }
 
