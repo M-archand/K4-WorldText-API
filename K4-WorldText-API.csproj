@@ -20,7 +20,6 @@
       <ExcludeAssets>runtime</ExcludeAssets>
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <ProjectReference Include="K4-WorldText-SharedAPI\K4-WorldText-SharedAPI.csproj">
       <Private>false</Private>
     </ProjectReference>
