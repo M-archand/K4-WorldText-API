@@ -93,7 +93,7 @@ public class Plugin : BasePlugin
         MultilineWorldText.ResetIds();
     }
 
-    public void ClearData()
+    internal void ClearData()
     {
         foreach (var multilineWorldText in _multilineWorldTexts.Values)
             multilineWorldText.Dispose();
@@ -125,7 +125,7 @@ public class Plugin : BasePlugin
         return true;
     }
 
-    public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines)
+    internal int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines)
     {
         var multilineWorldText = new MultilineWorldText(this, lines);
         TrackWorldText(multilineWorldText);
@@ -167,7 +167,7 @@ public class Plugin : BasePlugin
         return multilineWorldText.Id;
     }
 
-    public static QAngle GetNormalizedAngles(QAngle absRotation)
+    internal static QAngle GetNormalizedAngles(QAngle absRotation)
     {
         return new QAngle(
             absRotation.X,
@@ -176,7 +176,7 @@ public class Plugin : BasePlugin
         );
     }
 
-    public static Vector GetPlayerPosition(Vector feet, List<TextLine> lines)
+    internal static Vector GetPlayerPosition(Vector feet, List<TextLine> lines)
     {
         static float StepFor(TextLine l) => MathF.Max(10f, TextLineLimits.FontSize(l.FontSize) / 3f);
 
@@ -189,7 +189,7 @@ public class Plugin : BasePlugin
         return new Vector(feet.X, feet.Y, feet.Z + usedHeight + bottomPad);
     }
 
-    public string EntityFaceToDirection(float yaw)
+    internal string EntityFaceToDirection(float yaw)
     {
         yaw = ((yaw % 360f) + 540f) % 360f - 180f;
 
@@ -210,7 +210,7 @@ public class Plugin : BasePlugin
         return "X-Y";
     }
 
-    public Vector GetDirectionOffset(string direction, float offsetValue)
+    internal Vector GetDirectionOffset(string direction, float offsetValue)
     {
         return direction switch
         {
