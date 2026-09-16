@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
@@ -78,6 +79,31 @@ public class Plugin : BasePlugin
         _multilineWorldTexts.Clear();
     }
 
+    internal static bool TryGetPawnTransform(
+        CCSPlayerController? player,
+        [NotNullWhen(true)] out Vector? origin,
+        [NotNullWhen(true)] out QAngle? rotation)
+    {
+        origin = null;
+        rotation = null;
+
+        if (player is null || !player.IsValid)
+            return false;
+
+        var pawn = player.PlayerPawn?.Value;
+        if (pawn is null || !pawn.IsValid)
+            return false;
+
+        var pawnOrigin = pawn.AbsOrigin;
+        var pawnRotation = pawn.AbsRotation;
+        if (pawnOrigin is null || pawnRotation is null)
+            return false;
+
+        origin = new Vector(pawnOrigin.X, pawnOrigin.Y, pawnOrigin.Z);
+        rotation = new QAngle(pawnRotation.X, pawnRotation.Y, pawnRotation.Z);
+        return true;
+    }
+
     public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines)
     {
         var multilineWorldText = new MultilineWorldText(this, lines);
@@ -88,22 +114,30 @@ public class Plugin : BasePlugin
             if (multilineWorldText.IsDisposed)
                 return;
 
+            if (!TryGetPawnTransform(player, out var pawnOrigin, out var pawnRotation))
+            {
+                Logger.LogWarning("AddWorldTextAtPlayer({Id}) discarded: the player controller became invalid before the spawn ran.", multilineWorldText.Id);
+                UntrackWorldText(multilineWorldText);
+                multilineWorldText.Dispose();
+                return;
+            }
+
             var AbsOrigin = Vector.Zero;
             var AbsRotation = QAngle.Zero;
-            var tempRotation = GetNormalizedAngles(player);
+            var tempRotation = GetNormalizedAngles(pawnRotation);
             switch (placement)
             {
                 case TextPlacement.Wall:
-                    AbsOrigin = GetPlayerPosition(player, lines);
+                    AbsOrigin = GetPlayerPosition(pawnOrigin, lines);
                     AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z + 90);
                     break;
                 case TextPlacement.Floor:
-                    AbsOrigin = player.PlayerPawn.Value!.AbsOrigin!.With(z: player.PlayerPawn.Value!.AbsOrigin!.Z + 1);
+                    AbsOrigin = pawnOrigin.With(z: pawnOrigin.Z + 1);
                     AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z);
                     break;
             }
 
-            var direction = EntityFaceToDirection(player.PlayerPawn.Value!.AbsRotation!.Y);
+            var direction = EntityFaceToDirection(pawnRotation.Y);
             var offset = GetDirectionOffset(direction, 15);
 
             multilineWorldText.Spawn(AbsOrigin + offset, AbsRotation, placement);
@@ -112,20 +146,17 @@ public class Plugin : BasePlugin
         return multilineWorldText.Id;
     }
 
-    public static QAngle GetNormalizedAngles(CCSPlayerController player)
+    public static QAngle GetNormalizedAngles(QAngle absRotation)
     {
-        var AbsRotation = player.PlayerPawn.Value!.AbsRotation!;
         return new QAngle(
-            AbsRotation.X,
-            (float)Math.Round(AbsRotation.Y / 10.0) * 10,
-            AbsRotation.Z
+            absRotation.X,
+            (float)Math.Round(absRotation.Y / 10.0) * 10,
+            absRotation.Z
         );
     }
 
-    public static Vector GetPlayerPosition(CCSPlayerController player, List<TextLine> lines)
+    public static Vector GetPlayerPosition(Vector feet, List<TextLine> lines)
     {
-        var feet = player.PlayerPawn.Value!.AbsOrigin!;
-
         static float StepFor(TextLine l) => MathF.Max(10f, TextLineLimits.FontSize(l.FontSize) / 3f);
 
         float totalAdvance = lines.Sum(StepFor);
@@ -251,6 +282,8 @@ public class Plugin : BasePlugin
         public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines)
         {
             ArgumentNullException.ThrowIfNull(player);
+            if (!TryGetPawnTransform(player, out _, out _))
+                throw new ArgumentException("The player controller is invalid or has no valid pawn.", nameof(player));
             ValidatePlacement(placement);
             var lines = ValidateLines(textLines, nameof(textLines));
 
