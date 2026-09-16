@@ -9,6 +9,7 @@
         <RootNamespace>K4_WorldTextAPI</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <OutputPath>$(MSBuildThisFileDirectory)..\BuildOutput\shared\K4-WorldText-SharedAPI\</OutputPath>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     </PropertyGroup>
