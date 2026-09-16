@@ -95,6 +95,8 @@ The `IK4WorldTextSharedAPI` interface exposes:
 
 `UpdateWorldText`, `RemoveWorldText`, `TeleportWorldText`, and `GetWorldTextLineEntities` throw `KeyNotFoundException("WorldText with ID N not found.")` for an id that is not tracked, including every id issued before the last map change. Catch that type to handle the expected post-map-change case.
 
+Arguments are validated synchronously on the calling thread before any work is queued, and a bad argument throws an `ArgumentException` (or a subclass): a null `player`, `position`, `angle`, `textLine`, or `textLines`; an empty `textLines` list or one containing a null entry or a null `Text`; a `placement` outside the `TextPlacement` enum. The plugin copies `textLines` at the call, so the caller may reuse or clear its list afterwards.
+
 Failures inside the queued entity work (for example `point_worldtext` creation failing because the server is out of entity slots) never reach the caller: the plugin rolls back any entities it created for that operation, logs the exception through its own logger, and keeps the id tracked so `RemoveWorldText` still works. The next round start retries the spawn.
 
 `placement` is `TextPlacement.Wall` or `TextPlacement.Floor`. Each `TextLine` carries its own styling: color, font, size, scale, justification, reorient mode, and an optional background panel (`BackgroundEnabled` plus the `Background*` fields). `Text` longer than 512 UTF-8 bytes is truncated on a character boundary; that is the `point_worldtext` limit.

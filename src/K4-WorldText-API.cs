@@ -183,14 +183,48 @@ public class Plugin : BasePlugin
         private MultilineWorldText RequireWorldText(int id) =>
             _plugin.FindWorldText(id) ?? throw new KeyNotFoundException($"WorldText with ID {id} not found.");
 
+        private static List<TextLine> ValidateLines(List<TextLine>? textLines, string paramName)
+        {
+            ArgumentNullException.ThrowIfNull(textLines, paramName);
+            if (textLines.Count == 0)
+                throw new ArgumentException("At least one TextLine is required.", paramName);
+
+            foreach (var line in textLines)
+            {
+                if (line is null)
+                    throw new ArgumentException("TextLine entries must not be null.", paramName);
+                if (line.Text is null)
+                    throw new ArgumentException("TextLine.Text must not be null.", paramName);
+            }
+
+            return new List<TextLine>(textLines);
+        }
+
+        private static void ValidatePlacement(TextPlacement placement)
+        {
+            if (!Enum.IsDefined(placement))
+                throw new ArgumentOutOfRangeException(nameof(placement), placement, "Unknown TextPlacement value.");
+        }
+
+        private static void ValidateTransform(Vector? position, QAngle? angle)
+        {
+            ArgumentNullException.ThrowIfNull(position);
+            ArgumentNullException.ThrowIfNull(angle);
+        }
+
         public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle)
         {
+            ArgumentNullException.ThrowIfNull(textLine);
             return AddWorldText(placement, new List<TextLine> { textLine }, position, angle);
         }
 
         public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle)
         {
-            var multilineWorldText = new MultilineWorldText(_plugin, textLines);
+            ValidatePlacement(placement);
+            ValidateTransform(position, angle);
+            var lines = ValidateLines(textLines, nameof(textLines));
+
+            var multilineWorldText = new MultilineWorldText(_plugin, lines);
             _plugin.TrackWorldText(multilineWorldText);
 
             _plugin.OnGameThread($"AddWorldText({multilineWorldText.Id})", () =>
@@ -206,12 +240,17 @@ public class Plugin : BasePlugin
 
         public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, TextLine textLine)
         {
+            ArgumentNullException.ThrowIfNull(textLine);
             return AddWorldTextAtPlayer(player, placement, new List<TextLine> { textLine });
         }
 
         public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines)
         {
-            return _plugin.SpawnMultipleLines(player, placement, textLines);
+            ArgumentNullException.ThrowIfNull(player);
+            ValidatePlacement(placement);
+            var lines = ValidateLines(textLines, nameof(textLines));
+
+            return _plugin.SpawnMultipleLines(player, placement, lines);
         }
 
         public void UpdateWorldText(int id, TextLine? textLine = null)
@@ -221,6 +260,7 @@ public class Plugin : BasePlugin
 
         public void UpdateWorldText(int id, List<TextLine>? textLines = null)
         {
+            var lines = textLines is null ? null : ValidateLines(textLines, nameof(textLines));
             var target = RequireWorldText(id);
 
             _plugin.OnGameThread($"UpdateWorldText({id})", () =>
@@ -228,7 +268,7 @@ public class Plugin : BasePlugin
                 if (target.IsDisposed)
                     return;
 
-                target.Update(textLines);
+                target.Update(lines);
             });
         }
 
@@ -249,6 +289,7 @@ public class Plugin : BasePlugin
 
         public void TeleportWorldText(int id, Vector position, QAngle angle)
         {
+            ValidateTransform(position, angle);
             var target = RequireWorldText(id);
 
             _plugin.OnGameThread($"TeleportWorldText({id})", () =>
