@@ -22,6 +22,16 @@ public class Plugin : BasePlugin
     internal MultilineWorldText? FindWorldText(int id) =>
         _multilineWorldTexts.TryGetValue(id, out var worldText) ? worldText : null;
 
+    internal List<MultilineWorldText> WorldTextsOwnedBy(string owner) =>
+        _multilineWorldTexts.Values.Where(worldText => worldText.Owner == owner).ToList();
+
+    private readonly WorldTextProvider _provider;
+
+    public Plugin()
+    {
+        _provider = new WorldTextProvider(this);
+    }
+
     private volatile int _gameThreadId;
 
     internal bool IsGameThread => _gameThreadId == Environment.CurrentManagedThreadId;
@@ -60,7 +70,7 @@ public class Plugin : BasePlugin
     public override string ModuleVersion => "2.0.0";
     public override string ModuleAuthor => "K4ryuu, Marchand";
 
-    public static PluginCapability<IK4WorldTextSharedAPI> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");
+    public static PluginCapability<IK4WorldTextProvider> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");
 
     public override void Load(bool hotReload)
     {
@@ -70,7 +80,7 @@ public class Plugin : BasePlugin
         // every call, even from the game thread, was needlessly queued.
         _gameThreadId = Environment.CurrentManagedThreadId;
 
-        Capabilities.RegisterPluginCapability(Capability_SharedAPI, () => new GameTextAPIHandler(this));
+        Capabilities.RegisterPluginCapability(Capability_SharedAPI, () => _provider);
 
         RegisterListener<Listeners.OnMapEnd>(ClearData);
 
@@ -129,19 +139,19 @@ public class Plugin : BasePlugin
         return true;
     }
 
-    internal int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines)
+    internal int SpawnMultipleLines(string owner, CCSPlayerController player, TextPlacement placement, List<TextLine> lines)
     {
-        var multilineWorldText = new MultilineWorldText(this, lines);
+        var multilineWorldText = new MultilineWorldText(this, owner, lines);
         TrackWorldText(multilineWorldText);
 
-        OnGameThread($"AddWorldTextAtPlayer({multilineWorldText.Id})", () =>
+        OnGameThread($"AddWorldTextAtPlayer({multilineWorldText.Id}) by {owner}", () =>
         {
             if (multilineWorldText.IsDisposed)
                 return;
 
             if (!TryGetPawnTransform(player, out var pawnOrigin, out var pawnRotation))
             {
-                Logger.LogWarning("AddWorldTextAtPlayer({Id}) discarded: the player controller became invalid before the spawn ran.", multilineWorldText.Id);
+                Logger.LogWarning("AddWorldTextAtPlayer({Id}) by {Owner} discarded: the player controller became invalid before the spawn ran.", multilineWorldText.Id, owner);
                 UntrackWorldText(multilineWorldText);
                 multilineWorldText.Dispose();
                 return;
@@ -230,25 +240,71 @@ public class Plugin : BasePlugin
         };
     }
 
-    public class GameTextAPIHandler : IK4WorldTextSharedAPI
+    public sealed class WorldTextProvider : IK4WorldTextProvider
     {
         private readonly Plugin _plugin;
+        private readonly ConcurrentDictionary<string, GameTextAPIHandler> _scopes = new();
 
-        public GameTextAPIHandler(Plugin plugin)
+        public WorldTextProvider(Plugin plugin)
         {
             _plugin = plugin;
         }
 
-        private TException Reject<TException>(string operation, TException exception)
+        public IK4WorldTextSharedAPI ForPlugin(IPlugin owner)
+        {
+            if (owner is null)
+            {
+                _plugin.Logger.LogWarning("ForPlugin rejected: owner is null.");
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            var name = owner.ModuleName;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                _plugin.Logger.LogWarning("ForPlugin rejected: owner has an empty ModuleName.");
+                throw new ArgumentException("The owning plugin must have a non-empty ModuleName.", nameof(owner));
+            }
+
+            if (_scopes.TryGetValue(name, out var existing))
+                return existing;
+
+            var scope = new GameTextAPIHandler(_plugin, name);
+            var winner = _scopes.GetOrAdd(name, scope);
+            if (ReferenceEquals(winner, scope))
+                _plugin.Logger.LogInformation("Consumer {Owner} acquired its WorldText scope.", name);
+
+            return winner;
+        }
+    }
+
+    public class GameTextAPIHandler : IK4WorldTextSharedAPI
+    {
+        private readonly Plugin _plugin;
+
+        public GameTextAPIHandler(Plugin plugin, string owner)
+        {
+            _plugin = plugin;
+            Owner = owner;
+        }
+
+        public string Owner { get; }
+
+        private TException Reject<TException>(string operation, TException exception, string? reason = null)
             where TException : Exception
         {
-            _plugin.Logger.LogWarning("{Operation} rejected: {Reason}", operation, exception.Message);
+            _plugin.Logger.LogWarning("{Operation} by {Owner} rejected: {Reason}", operation, Owner, reason ?? exception.Message);
             return exception;
         }
 
-        private MultilineWorldText RequireWorldText(string operation, int id) =>
-            _plugin.FindWorldText(id)
-            ?? throw Reject(operation, new KeyNotFoundException($"WorldText with ID {id} not found."));
+        private MultilineWorldText RequireWorldText(string operation, int id)
+        {
+            var target = _plugin.FindWorldText(id);
+            if (target is not null && target.Owner == Owner)
+                return target;
+
+            var reason = target is null ? null : $"WorldText {id} belongs to {target.Owner}.";
+            throw Reject(operation, new KeyNotFoundException($"WorldText with ID {id} not found."), reason);
+        }
 
         private List<TextLine> ValidateLines(string operation, List<TextLine>? textLines, string paramName)
         {
@@ -265,7 +321,7 @@ public class Plugin : BasePlugin
                     throw Reject(operation, new ArgumentException("TextLine.Text must not be null.", paramName));
             }
 
-            return new List<TextLine>(textLines);
+            return [.. textLines];
         }
 
         private void ValidatePlacement(string operation, TextPlacement placement)
@@ -296,10 +352,10 @@ public class Plugin : BasePlugin
             var (spawnPosition, spawnAngle) = CopyTransform(nameof(AddWorldText), position, angle);
             var lines = ValidateLines(nameof(AddWorldText), textLines, nameof(textLines));
 
-            var multilineWorldText = new MultilineWorldText(_plugin, lines);
+            var multilineWorldText = new MultilineWorldText(_plugin, Owner, lines);
             _plugin.TrackWorldText(multilineWorldText);
 
-            _plugin.OnGameThread($"AddWorldText({multilineWorldText.Id})", () =>
+            _plugin.OnGameThread($"AddWorldText({multilineWorldText.Id}) by {Owner}", () =>
             {
                 if (multilineWorldText.IsDisposed)
                     return;
@@ -326,7 +382,7 @@ public class Plugin : BasePlugin
             ValidatePlacement(nameof(AddWorldTextAtPlayer), placement);
             var lines = ValidateLines(nameof(AddWorldTextAtPlayer), textLines, nameof(textLines));
 
-            return _plugin.SpawnMultipleLines(player, placement, lines);
+            return _plugin.SpawnMultipleLines(Owner, player, placement, lines);
         }
 
         public void UpdateWorldText(int id, TextLine? textLine = null)
@@ -339,7 +395,7 @@ public class Plugin : BasePlugin
             var lines = textLines is null ? null : ValidateLines(nameof(UpdateWorldText), textLines, nameof(textLines));
             var target = RequireWorldText(nameof(UpdateWorldText), id);
 
-            _plugin.OnGameThread($"UpdateWorldText({id})", () =>
+            _plugin.OnGameThread($"UpdateWorldText({id}) by {Owner}", () =>
             {
                 if (target.IsDisposed)
                     return;
@@ -353,16 +409,23 @@ public class Plugin : BasePlugin
             var target = RequireWorldText(nameof(RemoveWorldText), id);
 
             _plugin.UntrackWorldText(target);
-            _plugin.OnGameThread($"RemoveWorldText({id})", target.Dispose);
+            _plugin.OnGameThread($"RemoveWorldText({id}) by {Owner}", target.Dispose);
         }
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
-            _plugin.ThrowIfNotGameThread(nameof(GetWorldTextLineEntities));
+            _plugin.ThrowIfNotGameThread($"{nameof(GetWorldTextLineEntities)} by {Owner}");
 
             var target = _plugin.FindWorldText(id);
             if (target is null)
                 return null;
+
+            if (target.Owner != Owner)
+            {
+                _plugin.Logger.LogWarning("{Operation} by {Owner} rejected: WorldText {Id} belongs to {ActualOwner}.",
+                    nameof(GetWorldTextLineEntities), Owner, id, target.Owner);
+                return null;
+            }
 
             return target.Texts
                 .Select(t => t.Entity)
@@ -376,7 +439,7 @@ public class Plugin : BasePlugin
             var (newPosition, newAngle) = CopyTransform(nameof(TeleportWorldText), position, angle);
             var target = RequireWorldText(nameof(TeleportWorldText), id);
 
-            _plugin.OnGameThread($"TeleportWorldText({id})", () =>
+            _plugin.OnGameThread($"TeleportWorldText({id}) by {Owner}", () =>
             {
                 if (target.IsDisposed)
                     return;
@@ -387,11 +450,11 @@ public class Plugin : BasePlugin
 
         public void RemoveAll()
         {
-            var targets = _plugin.MultilineWorldTexts;
+            var targets = _plugin.WorldTextsOwnedBy(Owner);
             foreach (var multilineWorldText in targets)
                 _plugin.UntrackWorldText(multilineWorldText);
 
-            _plugin.OnGameThread("RemoveAll", () =>
+            _plugin.OnGameThread($"RemoveAll by {Owner}", () =>
             {
                 foreach (var multilineWorldText in targets)
                     multilineWorldText.Dispose();

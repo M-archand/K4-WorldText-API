@@ -72,6 +72,28 @@ public class TextLine
     public int BackgroundPadChars { get; set; } = 2;
 }
 
+/// <summary>
+/// Entry point served by the <c>k4-worldtext:sharedapi</c> plugin capability.
+/// Obtain it with <c>new PluginCapability&lt;IK4WorldTextProvider&gt;("k4-worldtext:sharedapi").Get()</c>.
+/// </summary>
+public interface IK4WorldTextProvider
+{
+    /// <summary>
+    /// Returns the text API scoped to <paramref name="owner"/>. Every text created through the returned instance
+    /// belongs to that plugin: its id is unknown to every other scope, and <see cref="IK4WorldTextSharedAPI.RemoveAll"/>
+    /// on it removes only those texts. Scopes are keyed by <see cref="IPlugin.ModuleName"/>, so repeated calls from the
+    /// same plugin return the same scope, also after that plugin hot reloads. Safe to call from any thread.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="owner"/> has an empty <see cref="IPlugin.ModuleName"/>.</exception>
+    public IK4WorldTextSharedAPI ForPlugin(IPlugin owner);
+}
+
+/// <summary>
+/// Text API bound to one owning plugin; obtain it from <see cref="IK4WorldTextProvider.ForPlugin"/>.
+/// An id is only valid on the scope that issued it. Every id-taking method treats an id issued to another plugin
+/// exactly like an unknown id.
+/// </summary>
 public interface IK4WorldTextSharedAPI
 {
     public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle);
@@ -85,6 +107,6 @@ public interface IK4WorldTextSharedAPI
     public List<CPointWorldText>? GetWorldTextLineEntities(int id);
     public void TeleportWorldText(int id, Vector position, QAngle angle);
 
-    /// <summary>Despawns every text this plugin currently tracks, regardless of which consumer created it.</summary>
+    /// <summary>Despawns every text created through this scope. Texts owned by other plugins are untouched.</summary>
     public void RemoveAll();
 }

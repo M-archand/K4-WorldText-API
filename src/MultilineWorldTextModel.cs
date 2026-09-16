@@ -20,15 +20,17 @@ public class MultilineWorldText : IDisposable
     public QAngle? SpawnRotation;
     private CPointWorldText? _blockBackground;
 
-    public MultilineWorldText(Plugin plugin, List<TextLine> lines)
+    public MultilineWorldText(Plugin plugin, string owner, List<TextLine> lines)
     {
         Plugin = plugin;
+        Owner = owner;
 
         Id = Interlocked.Increment(ref nextId);
         Lines = lines;
     }
 
     public int Id { get; }
+    public string Owner { get; }
     public List<TextLine> Lines { get; private set; } = new();
     public List<WorldText> Texts { get; } = new();
 
