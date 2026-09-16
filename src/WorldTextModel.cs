@@ -154,6 +154,17 @@ public class WorldText : IDisposable
         Entity = ent;
     }
 
+    public void Teleport(Vector absOrigin, QAngle absRotation)
+    {
+        AbsOrigin = absOrigin;
+        AbsRotation = absRotation;
+
+        if (BackgroundEntity?.IsValid == true)
+            BackgroundEntity.Teleport(absOrigin, absRotation);
+        if (Entity?.IsValid == true)
+            Entity.Teleport(absOrigin, absRotation);
+    }
+
     public bool HasValidEntities =>
         Entity?.IsValid == true && (!Data.BackgroundEnabled || BackgroundEntity?.IsValid == true);
 

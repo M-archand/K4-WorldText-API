@@ -90,7 +90,7 @@ The `IK4WorldTextSharedAPI` interface exposes:
 - `void UpdateWorldText(id, textLine | textLines = null)` - replaces the content/styling of an existing text. Entities are updated in place when the line count, font sizes, and background layout are unchanged; otherwise they are respawned. Passing no lines re-applies the current ones.
 - `void RemoveWorldText(id)` - despawns a text.
 - `List<CPointWorldText>? GetWorldTextLineEntities(id)` - returns the valid foreground entity for each line (background entities and lines whose entity is currently invalid are not included), or `null` if the id is not tracked. **Game thread only** (see below).
-- `void TeleportWorldText(id, position, angle)` - moves an existing text by respawning its entities at the new position.
+- `void TeleportWorldText(id, position, angle)` - moves an existing text in place. Entities are respawned only if one of them is no longer valid.
 - `void RemoveAll()` - despawns every tracked text, including texts created by other consumers.
 
 `UpdateWorldText`, `RemoveWorldText`, and `TeleportWorldText` throw `KeyNotFoundException("WorldText with ID N not found.")` for an id that is not tracked, including every id issued before the last map change. Catch that type to handle the expected post-map-change case. `GetWorldTextLineEntities` returns `null` instead.

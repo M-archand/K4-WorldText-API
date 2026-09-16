@@ -70,9 +70,46 @@ public class MultilineWorldText : IDisposable
     {
         ThrowIfDisposed();
 
+        if (TryTeleportInPlace(absOrigin, absRotation))
+            return;
+
         Remove();
         Spawn(absOrigin, absRotation, placement);
     }
+
+    private bool TryTeleportInPlace(Vector absOrigin, QAngle absRotation)
+    {
+        if (Texts.Count == 0 || !HasValidEntities)
+            return false;
+
+        var floorDir = Plugin.EntityFaceToDirection(absRotation.Y - 270);
+
+        if (_blockBackground?.IsValid == true)
+            _blockBackground.Teleport(LineOrigin(absOrigin, floorDir, UsedHeight() * 0.5f), absRotation, null);
+
+        float currentHeight = 0f;
+        for (int i = 0; i < Texts.Count; i++)
+        {
+            Texts[i].Teleport(LineOrigin(absOrigin, floorDir, currentHeight), absRotation);
+            currentHeight += StepFor(Lines[i]);
+        }
+
+        SpawnOrigin = Texts[0].AbsOrigin;
+        SpawnRotation = Texts[0].AbsRotation;
+        return true;
+    }
+
+    // Vertical extent covered by the lines, from the first baseline to the last
+    private float UsedHeight() =>
+        Lines.Count > 0 ? Lines.Sum(StepFor) - StepFor(Lines[^1]) : 0f;
+
+    // Origin of a line `distance` units down the stack: along -Z on a wall, along the facing direction on the floor.
+    private Vector LineOrigin(Vector absOrigin, string floorDir, float distance) => placement switch
+    {
+        TextPlacement.Wall => absOrigin.With(z: absOrigin.Z - distance),
+        TextPlacement.Floor => absOrigin - Plugin.GetDirectionOffset(floorDir, distance),
+        _ => absOrigin
+    };
 
     private static string MakeBlockMask(
         IReadOnlyList<string> lines,
@@ -170,10 +207,7 @@ public class MultilineWorldText : IDisposable
     {
         this.placement = placement;
 
-        float totalAdvance = Lines.Sum(StepFor);
-        float usedHeight = Lines.Count > 0 ? totalAdvance - StepFor(Lines[^1]) : 0f;
-        float halfHeight = usedHeight * 0.5f;
-
+        var floorDir = Plugin.EntityFaceToDirection(absRotation.Y - 270);
         bool blockBg = UsesBlockBackground(Lines);
 
         if (blockBg)
@@ -183,53 +217,21 @@ public class MultilineWorldText : IDisposable
 
             ApplyBlockBackground(bg, Lines);
 
-            // Center the background
-            Vector bgOrigin;
-            switch (placement)
-            {
-                case TextPlacement.Wall:
-                    bgOrigin = absOrigin.With(z: absOrigin.Z - halfHeight);
-                    break;
-                case TextPlacement.Floor:
-                    var dir = Plugin.EntityFaceToDirection(absRotation.Y - 270);
-                    var off = Plugin.GetDirectionOffset(dir, halfHeight);
-                    bgOrigin = absOrigin - off;
-                    break;
-                default:
-                    bgOrigin = absOrigin;
-                    break;
-            }
-
-            bg.Teleport(bgOrigin, absRotation, null);
+            // Center the background on the stack of lines
+            bg.Teleport(LineOrigin(absOrigin, floorDir, UsedHeight() * 0.5f), absRotation, null);
             bg.DispatchSpawn();
             _blockBackground = bg;
         }
 
-        var floorDir = Plugin.EntityFaceToDirection(absRotation.Y - 270);
         float currentHeight = 0f;
 
         foreach (var line in Lines)
         {
-            TextLine ln = ForegroundLine(line, blockBg);
-
-            switch (placement)
-            {
-                case TextPlacement.Wall:
-                    Texts.Add(new WorldText(
-                        Plugin,
-                        absOrigin.With(z: absOrigin.Z - currentHeight),
-                        absRotation,
-                        ln));
-                    break;
-
-                case TextPlacement.Floor:
-                    Texts.Add(new WorldText(
-                        Plugin,
-                        absOrigin - Plugin.GetDirectionOffset(floorDir, currentHeight),
-                        absRotation,
-                        ln));
-                    break;
-            }
+            Texts.Add(new WorldText(
+                Plugin,
+                LineOrigin(absOrigin, floorDir, currentHeight),
+                absRotation,
+                ForegroundLine(line, blockBg)));
 
             currentHeight += StepFor(line);
         }
