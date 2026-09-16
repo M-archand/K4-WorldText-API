@@ -194,7 +194,7 @@ public class MultilineWorldText : IDisposable
             _blockBackground = bg;
         }
 
-        WorldText? lastSpanedText = null;
+        var floorDir = Plugin.EntityFaceToDirection(absRotation.Y - 270);
         float currentHeight = 0f;
 
         foreach (var line in Lines)
@@ -212,17 +212,11 @@ public class MultilineWorldText : IDisposable
                     break;
 
                 case TextPlacement.Floor:
-                    if (lastSpanedText?.Entity != null)
-                    {
-                        var dir = Plugin.EntityFaceToDirection(lastSpanedText.Entity.AbsRotation!.Y - 270);
-                        var off = Plugin.GetDirectionOffset(dir, currentHeight);
-                        lastSpanedText = new WorldText(Plugin, absOrigin - off, absRotation, ln);
-                    }
-                    else
-                    {
-                        lastSpanedText = new WorldText(Plugin, absOrigin, absRotation, ln);
-                    }
-                    Texts.Add(lastSpanedText);
+                    Texts.Add(new WorldText(
+                        Plugin,
+                        absOrigin - Plugin.GetDirectionOffset(floorDir, currentHeight),
+                        absRotation,
+                        ln));
                     break;
             }
 
