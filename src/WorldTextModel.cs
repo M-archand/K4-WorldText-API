@@ -38,15 +38,18 @@ public class WorldText : IDisposable
 
     internal const int MessageTextByteBudget = 512;
 
-    internal static string ClampToMessageTextBudget(string? text)
+    internal static string ClampToMessageTextBudget(string? text) =>
+        ClampToByteBudget(text, MessageTextByteBudget);
+
+    internal static string ClampToByteBudget(string? text, int byteBudget)
     {
         if (string.IsNullOrEmpty(text))
             return string.Empty;
 
-        if (Encoding.UTF8.GetByteCount(text) <= MessageTextByteBudget)
+        if (Encoding.UTF8.GetByteCount(text) <= byteBudget)
             return text;
 
-        Span<byte> buffer = stackalloc byte[MessageTextByteBudget];
+        Span<byte> buffer = stackalloc byte[byteBudget];
         Encoding.UTF8.GetEncoder().Convert(text, buffer, flush: true, out int charsUsed, out _, out _);
         return text[..charsUsed];
     }
@@ -67,12 +70,12 @@ public class WorldText : IDisposable
     {
         ent.MessageText = ClampToMessageTextBudget(data.Text);
         ent.Enabled = true;
-        ent.FontName = data.FontName;
-        ent.FontSize = data.FontSize;
+        ent.FontName = TextLineLimits.FontName(data.FontName);
+        ent.FontSize = TextLineLimits.FontSize(data.FontSize);
         ent.Color = data.Color;
         ent.Fullbright = data.FullBright;
-        ent.WorldUnitsPerPx = data.Scale;
-        ent.DepthOffset = data.ForegroundDepthOffset;
+        ent.WorldUnitsPerPx = TextLineLimits.Scale(data.Scale);
+        ent.DepthOffset = TextLineLimits.DepthOffset(data.ForegroundDepthOffset);
         ent.JustifyHorizontal = data.JustifyHorizontal;
         ent.JustifyVertical = data.JustifyVertical;
         ent.ReorientMode = data.ReorientMode;
@@ -82,20 +85,20 @@ public class WorldText : IDisposable
     {
         bg.MessageText = ClampToMessageTextBudget(BackgroundText(data));
         bg.Enabled = true;
-        bg.FontName = data.FontName;
-        bg.FontSize = data.FontSize;
+        bg.FontName = TextLineLimits.FontName(data.FontName);
+        bg.FontSize = TextLineLimits.FontSize(data.FontSize);
         bg.Fullbright = data.BackgroundFullBright;
         bg.Color = data.BackgroundColor;
-        bg.WorldUnitsPerPx = data.BackgroundScale;
-        bg.DepthOffset = data.BackgroundDepthOffset;
+        bg.WorldUnitsPerPx = TextLineLimits.Scale(data.BackgroundScale);
+        bg.DepthOffset = TextLineLimits.DepthOffset(data.BackgroundDepthOffset);
         bg.JustifyHorizontal = data.JustifyHorizontal;
         bg.JustifyVertical = data.JustifyVertical;
         bg.ReorientMode = data.ReorientMode;
 
         bg.DrawBackground = true;
-        bg.BackgroundBorderWidth  = data.BackgroundBorderWidth;
-        bg.BackgroundBorderHeight = data.BackgroundBorderHeight;
-        bg.BackgroundWorldToUV    = data.BackgroundWorldToUV;
+        bg.BackgroundBorderWidth  = TextLineLimits.Border(data.BackgroundBorderWidth);
+        bg.BackgroundBorderHeight = TextLineLimits.Border(data.BackgroundBorderHeight);
+        bg.BackgroundWorldToUV    = TextLineLimits.WorldToUV(data.BackgroundWorldToUV);
     }
 
     internal static void NotifyChanged(CPointWorldText ent, bool background)

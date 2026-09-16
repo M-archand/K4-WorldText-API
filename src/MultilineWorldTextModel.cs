@@ -64,7 +64,7 @@ public class MultilineWorldText : IDisposable
     private static TextLine ForegroundLine(TextLine line, bool blockBg) =>
         blockBg && line.BackgroundEnabled ? CloneWithoutBackground(line) : line;
 
-    private static float StepFor(TextLine l) => MathF.Max(10f, l.FontSize / 3f);
+    private static float StepFor(TextLine l) => MathF.Max(10f, TextLineLimits.FontSize(l.FontSize) / 3f);
 
     public void Teleport(Vector absOrigin, QAngle absRotation)
     {
@@ -108,16 +108,16 @@ public class MultilineWorldText : IDisposable
     {
         var cfg = lines.First(l => l.BackgroundEnabled);
         var refLine = lines.FirstOrDefault(l => !l.BackgroundEnabled) ?? lines[0];
-        int backgroundFontSize = refLine.FontSize + 3;
-        float blockBorderWidth = cfg.BackgroundBorderWidth;
+        int backgroundFontSize = TextLineLimits.FontSize(refLine.FontSize) + 3;
+        float blockBorderWidth = TextLineLimits.Border(cfg.BackgroundBorderWidth);
 
         var foregroundTexts = lines.Select(l => l.Text).ToList();
         int usedWidthChars, desiredWidthChars;
         bg.MessageText = MakeBlockMask(
             foregroundTexts,
-            cfg.BackgroundMaxCharsPerLine,
-            cfg.BackgroundWidthInflation,
-            cfg.BackgroundPadChars,
+            TextLineLimits.CharsPerLine(cfg.BackgroundMaxCharsPerLine),
+            TextLineLimits.WidthInflation(cfg.BackgroundWidthInflation),
+            TextLineLimits.PadChars(cfg.BackgroundPadChars),
             out usedWidthChars,
             out desiredWidthChars
         );
@@ -125,17 +125,17 @@ public class MultilineWorldText : IDisposable
         if (desiredWidthChars > usedWidthChars && usedWidthChars > 0)
         {
             float ratio = (float)desiredWidthChars / usedWidthChars;
-            blockBorderWidth *= ratio;
+            blockBorderWidth = TextLineLimits.Border(blockBorderWidth * ratio);
         }
 
         bg.Enabled = true;
-        bg.FontName = refLine.FontName;
+        bg.FontName = TextLineLimits.FontName(refLine.FontName);
         bg.FontSize = backgroundFontSize;
         bg.Fullbright = true;
         bg.Color = cfg.BackgroundColor;
-        float requestedBgScale = refLine.Scale;
-        if (cfg.BackgroundScale > 0f && cfg.BackgroundScale < requestedBgScale)
-            requestedBgScale = cfg.BackgroundScale;
+        float requestedBgScale = TextLineLimits.Scale(refLine.Scale);
+        if (cfg.BackgroundScale > 0f)
+            requestedBgScale = MathF.Min(requestedBgScale, TextLineLimits.Scale(cfg.BackgroundScale));
 
         float maxBgScaleForStep = StepFor(refLine) / MathF.Max(1f, backgroundFontSize);
         float effectiveBgScale = MathF.Min(requestedBgScale, maxBgScaleForStep);
@@ -146,9 +146,9 @@ public class MultilineWorldText : IDisposable
         bg.ReorientMode = refLine.ReorientMode;
         bg.DrawBackground = true;
         bg.BackgroundBorderWidth  = blockBorderWidth;
-        bg.BackgroundBorderHeight = cfg.BackgroundBorderHeight;
-        bg.BackgroundWorldToUV    = cfg.BackgroundWorldToUV;
-        bg.DepthOffset = cfg.BackgroundDepthOffset;
+        bg.BackgroundBorderHeight = TextLineLimits.Border(cfg.BackgroundBorderHeight);
+        bg.BackgroundWorldToUV    = TextLineLimits.WorldToUV(cfg.BackgroundWorldToUV);
+        bg.DepthOffset            = TextLineLimits.DepthOffset(cfg.BackgroundDepthOffset);
     }
 
     public void Spawn(Vector absOrigin, QAngle absRotation, TextPlacement placement)

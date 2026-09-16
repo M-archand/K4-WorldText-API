@@ -101,6 +101,8 @@ Failures inside the queued entity work (for example `point_worldtext` creation f
 
 `placement` is `TextPlacement.Wall` or `TextPlacement.Floor`. Each `TextLine` carries its own styling: color, font, size, scale, justification, reorient mode, and an optional background panel (`BackgroundEnabled` plus the `Background*` fields). `Text` longer than 512 UTF-8 bytes is truncated on a character boundary; that is the `point_worldtext` limit.
 
+Numeric styling fields are clamped before they reach the entity, never rejected: `FontSize` to 1–500, `Scale` and `BackgroundScale` to 0.01–10, `BackgroundWorldToUV` to 0.001–10, `BackgroundBorderWidth`/`BackgroundBorderHeight` to 0–1000, the depth offsets to ±100, `BackgroundMaxCharsPerLine` to 1–256, `BackgroundPadChars` to 0–256, and `BackgroundWidthInflation` to 0.1–10. `NaN` becomes the in-range value closest to zero. `FontName` is truncated to 64 UTF-8 bytes, the size of the entity's font-name field.
+
 ### Lifecycle
 - A text exists only because a consumer created it, and only until that consumer removes it, someone calls `RemoveAll()`, or the map ends. Nothing is loaded from or saved to disk.
 - On every round start the plugin re-applies each tracked text, respawning its entities if the round transition destroyed them.

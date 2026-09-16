@@ -123,7 +123,7 @@ public class Plugin : BasePlugin
     {
         var feet = player.PlayerPawn.Value!.AbsOrigin!;
 
-        static float StepFor(TextLine l) => MathF.Max(10f, l.FontSize / 3f);
+        static float StepFor(TextLine l) => MathF.Max(10f, TextLineLimits.FontSize(l.FontSize) / 3f);
 
         float totalAdvance = lines.Sum(StepFor);
         float usedHeight   = lines.Count > 0 ? totalAdvance - StepFor(lines[^1]) : 0f;
