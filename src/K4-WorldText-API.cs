@@ -22,7 +22,26 @@ public class Plugin : BasePlugin
     internal MultilineWorldText? FindWorldText(int id) =>
         _multilineWorldTexts.TryGetValue(id, out var worldText) ? worldText : null;
 
-    internal void OnGameThread(string operation, Action action) => Server.NextWorldUpdate(() =>
+    private volatile int _gameThreadId;
+
+    internal bool IsGameThread => _gameThreadId == Environment.CurrentManagedThreadId;
+
+    internal void ThrowIfNotGameThread(string operation)
+    {
+        if (_gameThreadId != 0 && _gameThreadId != Environment.CurrentManagedThreadId)
+            throw new InvalidOperationException(
+                $"{operation} must be called from the game thread: a command handler, a game event handler, a listener, or a Server.NextWorldUpdate callback.");
+    }
+
+    internal void OnGameThread(string operation, Action action)
+    {
+        if (IsGameThread)
+            RunLogged(operation, action);
+        else
+            Server.NextWorldUpdate(() => RunLogged(operation, action));
+    }
+
+    private void RunLogged(string operation, Action action)
     {
         try
         {
@@ -32,7 +51,7 @@ public class Plugin : BasePlugin
         {
             Logger.LogError(ex, "{Operation} failed on the game thread.", operation);
         }
-    });
+    }
 
     public override string ModuleName => "K4-WorldText-API";
     public override string ModuleVersion => "2.0.0";
@@ -42,6 +61,8 @@ public class Plugin : BasePlugin
 
     public override void Load(bool hotReload)
     {
+        Server.NextWorldUpdate(() => _gameThreadId = Environment.CurrentManagedThreadId);
+
         Capabilities.RegisterPluginCapability(Capability_SharedAPI, () => new GameTextAPIHandler(this));
 
         RegisterListener<Listeners.OnMapEnd>(ClearData);
@@ -319,6 +340,8 @@ public class Plugin : BasePlugin
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
+            _plugin.ThrowIfNotGameThread(nameof(GetWorldTextLineEntities));
+
             var target = _plugin.FindWorldText(id);
             if (target is null)
                 return null;

@@ -97,7 +97,7 @@ The `IK4WorldTextSharedAPI` interface exposes:
 
 Arguments are validated synchronously on the calling thread before any work is queued, and a bad argument throws an `ArgumentException` (or a subclass): a null `player`, `position`, `angle`, `textLine`, or `textLines`; a `player` whose controller is invalid or has no valid pawn (for example a disconnected player); an empty `textLines` list or one containing a null entry or a null `Text`; a `placement` outside the `TextPlacement` enum. The plugin copies `textLines` at the call, so the caller may reuse or clear its list afterwards.
 
-Failures inside the queued entity work (for example `point_worldtext` creation failing because the server is out of entity slots) never reach the caller: the plugin rolls back any entities it created for that operation, logs the exception through its own logger, and keeps the id tracked so `RemoveWorldText` still works. The next round start retries the spawn. The one exception is `AddWorldTextAtPlayer` when the player is no longer valid by the time the queued spawn runs: there is no position to retry from, so the text is discarded, its id becomes unknown (`KeyNotFoundException` / `null` as described above), and a warning is logged.
+Failures inside the entity work (for example `point_worldtext` creation failing because the server is out of entity slots) never reach the caller, whether the work ran immediately or was queued: the plugin rolls back any entities it created for that operation, logs the exception through its own logger, and keeps the id tracked so `RemoveWorldText` still works. The next round start retries the spawn. The one exception is `AddWorldTextAtPlayer` when the player is no longer valid by the time the queued spawn runs: there is no position to retry from, so the text is discarded, its id becomes unknown (`KeyNotFoundException` / `null` as described above), and a warning is logged.
 
 `placement` is `TextPlacement.Wall` or `TextPlacement.Floor`. Each `TextLine` carries its own styling: color, font, size, scale, justification, reorient mode, and an optional background panel (`BackgroundEnabled` plus the `Background*` fields). `Text` longer than 512 UTF-8 bytes is truncated on a character boundary; that is the `point_worldtext` limit.
 
@@ -110,14 +110,14 @@ Numeric styling fields are clamped before they reach the entity, never rejected:
 - Unloading or reloading this plugin destroys every text and resets the id counter, so ids restart from 1. Consumers that stay loaded across a reload must discard the ids they hold.
 
 ### Thread safety
-Every method except `GetWorldTextLineEntities` is safe to call from any thread - a `Task.Run` body, an `HttpClient` continuation, a database callback. The entity work is queued onto the game thread with `Server.NextWorldUpdate`, so:
+Every method except `GetWorldTextLineEntities` is safe to call from any thread - a `Task.Run` body, an `HttpClient` continuation, a database callback. Where the entity work runs depends on the calling thread:
 
-- The call returns before the text exists in the world. `AddWorldText` still returns its id immediately, and that id is valid right away.
-- Queued work runs in call order, so `UpdateWorldText` / `RemoveWorldText` on a freshly returned id behave as written.
-- `AddWorldTextAtPlayer` reads the player's position at world-update time, not at call time, and re-validates the controller and pawn there. The synchronous `ArgumentException` check at the call is a best-effort early rejection; a player who disconnects between the call and the world update produces no text (see above).
+- From the game thread (a command handler, a game event handler, a listener, a `Server.NextWorldUpdate` callback) the entity work runs before the call returns. The text exists in the world when `AddWorldText` returns its id, and `GetWorldTextLineEntities` called right after already lists its entities.
+- From any other thread the entity work is queued onto the game thread with `Server.NextWorldUpdate`. The call returns before the text exists in the world; the id is still valid right away. Queued work runs in call order, so `UpdateWorldText` / `RemoveWorldText` on a freshly returned id behave as written.
+- `AddWorldTextAtPlayer` reads the player's position when the entity work runs. From the game thread that is the call itself, so the `ArgumentException` check is authoritative. From another thread the controller and pawn are re-validated at world-update time, and a player who disconnected in between produces no text (see above).
 - `position` and `angle` are copied at the call. Passing an entity-backed `Vector`/`QAngle` such as `pawn.AbsOrigin` is safe; the plugin never reads the caller's instance again.
 
-`GetWorldTextLineEntities` returns raw entity pointers, which cannot be marshalled. Call it from a command handler, a game event handler, a listener, or inside your own `Server.NextWorldUpdate` callback.
+`GetWorldTextLineEntities` returns raw entity pointers, which cannot be marshalled, so it is game thread only: calling it from any other thread throws `InvalidOperationException`. A text whose spawn is still queued from another thread is listed with no entities until the next world update.
 
 ## License
 
