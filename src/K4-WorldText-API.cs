@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Capabilities;
@@ -9,11 +11,16 @@ namespace K4ryuuCS2WorldTextAPI;
 [MinimumApiVersion(369)]
 public class Plugin : BasePlugin
 {
-    private readonly List<MultilineWorldText> _multilineWorldTexts = new();
-    public IReadOnlyList<MultilineWorldText> MultilineWorldTexts => _multilineWorldTexts;
+    private readonly ConcurrentDictionary<int, MultilineWorldText> _multilineWorldTexts = new();
+    public IReadOnlyCollection<MultilineWorldText> MultilineWorldTexts => _multilineWorldTexts.Values.ToList();
 
-    internal void TrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.Add(worldText);
-    internal void UntrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.Remove(worldText);
+    internal void TrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts[worldText.Id] = worldText;
+    internal void UntrackWorldText(MultilineWorldText worldText) => _multilineWorldTexts.TryRemove(worldText.Id, out _);
+
+    internal MultilineWorldText? FindWorldText(int id) =>
+        _multilineWorldTexts.TryGetValue(id, out var worldText) ? worldText : null;
+
+    internal static void OnGameThread(Action action) => Server.NextWorldUpdate(action);
 
     public override string ModuleName => "K4-WorldText-API";
     public override string ModuleVersion => "1.3.0";
@@ -29,7 +36,8 @@ public class Plugin : BasePlugin
 
         RegisterEventHandler((EventRoundStart @event, GameEventInfo info) =>
         {
-            _multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Update());
+            foreach (var multilineWorldText in _multilineWorldTexts.Values)
+                multilineWorldText.Update();
             return HookResult.Continue;
         });
     }
@@ -42,34 +50,42 @@ public class Plugin : BasePlugin
 
     public void ClearData()
     {
-        _multilineWorldTexts.ForEach(multilineWorldText => multilineWorldText.Dispose());
+        foreach (var multilineWorldText in _multilineWorldTexts.Values)
+            multilineWorldText.Dispose();
         _multilineWorldTexts.Clear();
     }
 
     public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines, bool saveConfig = false)
     {
-        var AbsOrigin = Vector.Zero;
-        var AbsRotation = QAngle.Zero;
-        var tempRotation = GetNormalizedAngles(player);
-        switch (placement)
-        {
-            case TextPlacement.Wall:
-                AbsOrigin = GetPlayerPosition(player, lines);
-                AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z + 90);
-                break;
-            case TextPlacement.Floor:
-                AbsOrigin = player.PlayerPawn.Value!.AbsOrigin!.With(z: player.PlayerPawn.Value!.AbsOrigin!.Z + 1);
-                AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z);
-                break;
-        }
-
-        var direction = EntityFaceToDirection(player.PlayerPawn.Value!.AbsRotation!.Y);
-        var offset = GetDirectionOffset(direction, 15);
-
         var multilineWorldText = new MultilineWorldText(this, lines, saveConfig);
-        multilineWorldText.Spawn(AbsOrigin + offset, AbsRotation, placement);
+        TrackWorldText(multilineWorldText);
 
-        _multilineWorldTexts.Add(multilineWorldText);
+        OnGameThread(() =>
+        {
+            if (multilineWorldText.IsDisposed)
+                return;
+
+            var AbsOrigin = Vector.Zero;
+            var AbsRotation = QAngle.Zero;
+            var tempRotation = GetNormalizedAngles(player);
+            switch (placement)
+            {
+                case TextPlacement.Wall:
+                    AbsOrigin = GetPlayerPosition(player, lines);
+                    AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z + 90);
+                    break;
+                case TextPlacement.Floor:
+                    AbsOrigin = player.PlayerPawn.Value!.AbsOrigin!.With(z: player.PlayerPawn.Value!.AbsOrigin!.Z + 1);
+                    AbsRotation = new QAngle(tempRotation.X, tempRotation.Y + 270, tempRotation.Z);
+                    break;
+            }
+
+            var direction = EntityFaceToDirection(player.PlayerPawn.Value!.AbsRotation!.Y);
+            var offset = GetDirectionOffset(direction, 15);
+
+            multilineWorldText.Spawn(AbsOrigin + offset, AbsRotation, placement);
+        });
+
         return multilineWorldText.Id;
     }
 
@@ -152,9 +168,16 @@ public class Plugin : BasePlugin
             bool saveConfig = false)
         {
             var multilineWorldText = new MultilineWorldText(_plugin, textLines, saveConfig);
-            multilineWorldText.Spawn(position, angle, placement);
-
             _plugin.TrackWorldText(multilineWorldText);
+
+            OnGameThread(() =>
+            {
+                if (multilineWorldText.IsDisposed)
+                    return;
+
+                multilineWorldText.Spawn(position, angle, placement);
+            });
+
             return multilineWorldText.Id;
         }
 
@@ -177,26 +200,32 @@ public class Plugin : BasePlugin
 
         public void UpdateWorldText(int id, List<TextLine>? textLines = null)
         {
-            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
+            var target = _plugin.FindWorldText(id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
-            target.Update(textLines);
+            OnGameThread(() =>
+            {
+                if (target.IsDisposed)
+                    return;
+
+                target.Update(textLines);
+            });
         }
 
         public void RemoveWorldText(int id, bool removeFromConfig = true)
         {
-            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
+            var target = _plugin.FindWorldText(id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
-            target.Dispose();
             _plugin.UntrackWorldText(target);
+            OnGameThread(target.Dispose);
         }
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
-            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
+            var target = _plugin.FindWorldText(id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
@@ -205,21 +234,30 @@ public class Plugin : BasePlugin
 
         public void TeleportWorldText(int id, Vector position, QAngle angle, bool modifyConfig = false)
         {
-            var target = _plugin.MultilineWorldTexts.FirstOrDefault(wt => wt.Id == id);
+            var target = _plugin.FindWorldText(id);
             if (target is null)
                 throw new Exception($"WorldText with ID {id} not found.");
 
-            target.Teleport(position, angle, modifyConfig);
+            OnGameThread(() =>
+            {
+                if (target.IsDisposed)
+                    return;
+
+                target.Teleport(position, angle, modifyConfig);
+            });
         }
 
         public void RemoveAllTemporary()
         {
             var targets = _plugin.MultilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList();
             foreach (var multilineWorldText in targets)
-            {
-                multilineWorldText.Dispose();
                 _plugin.UntrackWorldText(multilineWorldText);
-            }
+
+            OnGameThread(() =>
+            {
+                foreach (var multilineWorldText in targets)
+                    multilineWorldText.Dispose();
+            });
         }
     }
 }

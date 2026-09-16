@@ -11,6 +11,8 @@ public class MultilineWorldText : IDisposable
     internal static void ResetIds() => Interlocked.Exchange(ref nextId, 0);
 
     private bool disposed;
+    public bool IsDisposed => disposed;
+
     public TextPlacement placement;
     private readonly Plugin Plugin;
 

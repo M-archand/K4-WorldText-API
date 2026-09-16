@@ -81,9 +81,19 @@ The `IK4WorldTextSharedAPI` interface exposes:
 - `int AddWorldTextAtPlayer(player, placement, textLine | textLines, saveConfig = false)` - spawns text relative to the player (e.g. floor in front of them). Returns the message id.
 - `void UpdateWorldText(id, textLine | textLines = null)` - replaces the content/styling of an existing text.
 - `void RemoveWorldText(id, removeFromConfig = true)` - despawns a text and, by default, drops it from the saved config.
-- `List<CPointWorldText>? GetWorldTextLineEntities(id)` - returns the underlying entities for a text, or `null`.
+- `List<CPointWorldText>? GetWorldTextLineEntities(id)` - returns the underlying entities for a text, or `null`. **Game thread only** (see below).
 - `void TeleportWorldText(id, position, angle, modifyConfig = false)` - moves an existing text; optionally updates its saved position.
 - `void RemoveAllTemporary()` - despawns every non-persisted text.
+
+### Thread safety
+
+Every method except `GetWorldTextLineEntities` is safe to call from any thread - a `Task.Run` body, an `HttpClient` continuation, a database callback. The entity work is queued onto the game thread with `Server.NextWorldUpdate`, so:
+
+- The call returns before the text exists in the world. `AddWorldText` still returns its id immediately, and that id is valid right away.
+- Queued work runs in call order, so `UpdateWorldText` / `RemoveWorldText` on a freshly returned id behave as written.
+- `AddWorldTextAtPlayer` reads the player's position at world-update time, not at call time.
+
+`GetWorldTextLineEntities` returns raw entity pointers, which cannot be marshalled. Call it from a command handler, a game event handler, a listener, or inside your own `Server.NextWorldUpdate` callback.
 
 `placement` is `TextPlacement.Wall` or `TextPlacement.Floor`. Each `TextLine` carries its own styling — color, font, size, scale, justification, reorient mode, and an optional background panel (`BackgroundEnabled` plus the `Background*` fields).
 
