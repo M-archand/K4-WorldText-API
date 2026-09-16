@@ -154,6 +154,9 @@ public class WorldText : IDisposable
         Entity = ent;
     }
 
+    public bool HasValidEntities =>
+        Entity?.IsValid == true && (!Data.BackgroundEnabled || BackgroundEntity?.IsValid == true);
+
     public bool CanUpdateInPlace(TextLine? data = null)
     {
         var next = data ?? Data;

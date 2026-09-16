@@ -105,7 +105,7 @@ Numeric styling fields are clamped before they reach the entity, never rejected:
 
 ### Lifecycle
 - A text exists only because a consumer created it, and only until that consumer removes it, someone calls `RemoveAll()`, or the map ends. Nothing is loaded from or saved to disk.
-- On every round start the plugin re-applies each tracked text, respawning its entities if the round transition destroyed them.
+- On every round start the plugin respawns each tracked text whose entities the round transition destroyed. Texts whose entities survived are left untouched, so a `TextLine` mutated after the call is not picked up until `UpdateWorldText` is called.
 - On map end every text is destroyed and its id becomes invalid. A consumer that wants a text on the next map re-creates it from its own map-start handling.
 - Unloading or reloading this plugin destroys every text and resets the id counter, so ids restart from 1. Consumers that stay loaded across a reload must discard the ids they hold.
 

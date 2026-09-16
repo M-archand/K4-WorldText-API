@@ -238,6 +238,26 @@ public class MultilineWorldText : IDisposable
         SpawnRotation = Texts[0].AbsRotation;
     }
 
+    public bool HasValidEntities
+    {
+        get
+        {
+            if (Texts.Count != Lines.Count)
+                return false;
+
+            if (UsesBlockBackground(Lines) && _blockBackground?.IsValid != true)
+                return false;
+
+            foreach (var text in Texts)
+            {
+                if (!text.HasValidEntities)
+                    return false;
+            }
+
+            return true;
+        }
+    }
+
     private bool CanUpdateInPlace(List<TextLine>? lines)
     {
         var next = lines ?? Lines;

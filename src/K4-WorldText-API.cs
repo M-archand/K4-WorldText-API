@@ -49,6 +49,9 @@ public class Plugin : BasePlugin
         {
             foreach (var multilineWorldText in _multilineWorldTexts.Values)
             {
+                if (multilineWorldText.HasValidEntities)
+                    continue;
+
                 try
                 {
                     multilineWorldText.Update();
