@@ -78,16 +78,13 @@ public class Plugin : BasePlugin
         {
             foreach (var multilineWorldText in _multilineWorldTexts.Values)
             {
-                if (multilineWorldText.HasValidEntities)
-                    continue;
-
                 try
                 {
-                    multilineWorldText.Update();
+                    multilineWorldText.RespawnIfInvalid();
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "Round-start update of WorldText {Id} failed.", multilineWorldText.Id);
+                    Logger.LogError(ex, "Round-start respawn of WorldText {Id} failed.", multilineWorldText.Id);
                 }
             }
             return HookResult.Continue;

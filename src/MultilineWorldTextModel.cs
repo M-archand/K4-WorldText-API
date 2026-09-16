@@ -324,10 +324,25 @@ public class MultilineWorldText : IDisposable
         if (TryUpdateInPlace(lines))
             return;
 
-        Remove();
-
         if (lines != null)
             Lines = lines;
+
+        Respawn();
+    }
+
+    public void RespawnIfInvalid()
+    {
+        ThrowIfDisposed();
+
+        if (HasValidEntities)
+            return;
+
+        Respawn();
+    }
+
+    private void Respawn()
+    {
+        Remove();
 
         if (SpawnOrigin != null && SpawnRotation != null)
             Spawn(SpawnOrigin, SpawnRotation, placement);
