@@ -23,7 +23,7 @@ public class Plugin : BasePlugin
     internal static void OnGameThread(Action action) => Server.NextWorldUpdate(action);
 
     public override string ModuleName => "K4-WorldText-API";
-    public override string ModuleVersion => "1.3.0";
+    public override string ModuleVersion => "2.0.0";
     public override string ModuleAuthor => "K4ryuu, Marchand";
 
     public static PluginCapability<IK4WorldTextSharedAPI> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");
@@ -55,9 +55,9 @@ public class Plugin : BasePlugin
         _multilineWorldTexts.Clear();
     }
 
-    public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines, bool saveConfig = false)
+    public int SpawnMultipleLines(CCSPlayerController player, TextPlacement placement, List<TextLine> lines)
     {
-        var multilineWorldText = new MultilineWorldText(this, lines, saveConfig);
+        var multilineWorldText = new MultilineWorldText(this, lines);
         TrackWorldText(multilineWorldText);
 
         OnGameThread(() =>
@@ -160,16 +160,14 @@ public class Plugin : BasePlugin
             _plugin = plugin;
         }
 
-        public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle,
-            bool saveConfig = false)
+        public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle)
         {
             return AddWorldText(placement, new List<TextLine> { textLine }, position, angle);
         }
 
-        public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle,
-            bool saveConfig = false)
+        public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle)
         {
-            var multilineWorldText = new MultilineWorldText(_plugin, textLines, saveConfig);
+            var multilineWorldText = new MultilineWorldText(_plugin, textLines);
             _plugin.TrackWorldText(multilineWorldText);
 
             OnGameThread(() =>
@@ -183,16 +181,14 @@ public class Plugin : BasePlugin
             return multilineWorldText.Id;
         }
 
-        public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, TextLine textLine,
-            bool saveConfig = false)
+        public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, TextLine textLine)
         {
             return AddWorldTextAtPlayer(player, placement, new List<TextLine> { textLine });
         }
 
-        public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines,
-            bool saveConfig = false)
+        public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines)
         {
-            return _plugin.SpawnMultipleLines(player, placement, textLines, saveConfig);
+            return _plugin.SpawnMultipleLines(player, placement, textLines);
         }
 
         public void UpdateWorldText(int id, TextLine? textLine = null)
@@ -215,7 +211,7 @@ public class Plugin : BasePlugin
             });
         }
 
-        public void RemoveWorldText(int id, bool removeFromConfig = true)
+        public void RemoveWorldText(int id)
         {
             var target = _plugin.FindWorldText(id);
             if (target is null)
@@ -234,7 +230,7 @@ public class Plugin : BasePlugin
             return target.Texts.Where(t => t.Entity != null).Select(t => t.Entity).Cast<CPointWorldText>().ToList();
         }
 
-        public void TeleportWorldText(int id, Vector position, QAngle angle, bool modifyConfig = false)
+        public void TeleportWorldText(int id, Vector position, QAngle angle)
         {
             var target = _plugin.FindWorldText(id);
             if (target is null)
@@ -245,13 +241,13 @@ public class Plugin : BasePlugin
                 if (target.IsDisposed)
                     return;
 
-                target.Teleport(position, angle, modifyConfig);
+                target.Teleport(position, angle);
             });
         }
 
-        public void RemoveAllTemporary()
+        public void RemoveAll()
         {
-            var targets = _plugin.MultilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList();
+            var targets = _plugin.MultilineWorldTexts;
             foreach (var multilineWorldText in targets)
                 _plugin.UntrackWorldText(multilineWorldText);
 

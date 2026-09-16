@@ -74,22 +74,17 @@ public class TextLine
 
 public interface IK4WorldTextSharedAPI
 {
-    public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle,
-        bool saveConfig = false);
-
-    public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle,
-        bool saveConfig = false);
-
-    public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, TextLine textLine,
-        bool saveConfig = false);
-
-    public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines,
-        bool saveConfig = false);
+    public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle);
+    public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle);
+    public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, TextLine textLine);
+    public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines);
 
     public void UpdateWorldText(int id, TextLine? textLine = null);
     public void UpdateWorldText(int id, List<TextLine>? textLines = null);
-    public void RemoveWorldText(int id, bool removeFromConfig = true);
+    public void RemoveWorldText(int id);
     public List<CPointWorldText>? GetWorldTextLineEntities(int id);
-    public void TeleportWorldText(int id, Vector position, QAngle angle, bool modifyConfig = false);
-    public void RemoveAllTemporary();
+    public void TeleportWorldText(int id, Vector position, QAngle angle);
+
+    /// <summary>Despawns every text this plugin currently tracks, regardless of which consumer created it.</summary>
+    public void RemoveAll();
 }

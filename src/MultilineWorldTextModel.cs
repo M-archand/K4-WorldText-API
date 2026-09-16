@@ -20,19 +20,17 @@ public class MultilineWorldText : IDisposable
     public QAngle? SpawnRotation;
     private CPointWorldText? _blockBackground;
 
-    public MultilineWorldText(Plugin plugin, List<TextLine> lines, bool save = false)
+    public MultilineWorldText(Plugin plugin, List<TextLine> lines)
     {
         Plugin = plugin;
 
         Id = Interlocked.Increment(ref nextId);
         Lines = lines;
-        SaveToConfig = save;
     }
 
     public int Id { get; }
     public List<TextLine> Lines { get; private set; } = new();
     public List<WorldText> Texts { get; } = new();
-    public bool SaveToConfig { get; set; }
 
     public void Dispose()
     {
@@ -68,7 +66,7 @@ public class MultilineWorldText : IDisposable
 
     private static float StepFor(TextLine l) => MathF.Max(10f, l.FontSize / 3f);
 
-    public void Teleport(Vector absOrigin, QAngle absRotation, bool modifyConfig = false)
+    public void Teleport(Vector absOrigin, QAngle absRotation)
     {
         ThrowIfDisposed();
 
