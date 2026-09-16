@@ -29,8 +29,11 @@ public class Plugin : BasePlugin
     internal void ThrowIfNotGameThread(string operation)
     {
         if (!IsGameThread)
+        {
+            Logger.LogWarning("{Operation} rejected: called from thread {ThreadId}, not the game thread.", operation, Environment.CurrentManagedThreadId);
             throw new InvalidOperationException(
                 $"{operation} must be called from the game thread: a command handler, a game event handler, a listener, or a Server.NextWorldUpdate callback.");
+        }
     }
 
     internal void OnGameThread(string operation, Action action)
@@ -239,50 +242,62 @@ public class Plugin : BasePlugin
             _plugin = plugin;
         }
 
-        private MultilineWorldText RequireWorldText(int id) =>
-            _plugin.FindWorldText(id) ?? throw new KeyNotFoundException($"WorldText with ID {id} not found.");
-
-        private static List<TextLine> ValidateLines(List<TextLine>? textLines, string paramName)
+        private TException Reject<TException>(string operation, TException exception)
+            where TException : Exception
         {
-            ArgumentNullException.ThrowIfNull(textLines, paramName);
+            _plugin.Logger.LogWarning("{Operation} rejected: {Reason}", operation, exception.Message);
+            return exception;
+        }
+
+        private MultilineWorldText RequireWorldText(string operation, int id) =>
+            _plugin.FindWorldText(id)
+            ?? throw Reject(operation, new KeyNotFoundException($"WorldText with ID {id} not found."));
+
+        private List<TextLine> ValidateLines(string operation, List<TextLine>? textLines, string paramName)
+        {
+            if (textLines is null)
+                throw Reject(operation, new ArgumentNullException(paramName));
             if (textLines.Count == 0)
-                throw new ArgumentException("At least one TextLine is required.", paramName);
+                throw Reject(operation, new ArgumentException("At least one TextLine is required.", paramName));
 
             foreach (var line in textLines)
             {
                 if (line is null)
-                    throw new ArgumentException("TextLine entries must not be null.", paramName);
+                    throw Reject(operation, new ArgumentException("TextLine entries must not be null.", paramName));
                 if (line.Text is null)
-                    throw new ArgumentException("TextLine.Text must not be null.", paramName);
+                    throw Reject(operation, new ArgumentException("TextLine.Text must not be null.", paramName));
             }
 
             return new List<TextLine>(textLines);
         }
 
-        private static void ValidatePlacement(TextPlacement placement)
+        private void ValidatePlacement(string operation, TextPlacement placement)
         {
             if (!Enum.IsDefined(placement))
-                throw new ArgumentOutOfRangeException(nameof(placement), placement, "Unknown TextPlacement value.");
+                throw Reject(operation, new ArgumentOutOfRangeException(nameof(placement), placement, "Unknown TextPlacement value."));
         }
 
-        private static (Vector Position, QAngle Angle) CopyTransform(Vector? position, QAngle? angle)
+        private (Vector Position, QAngle Angle) CopyTransform(string operation, Vector? position, QAngle? angle)
         {
-            ArgumentNullException.ThrowIfNull(position);
-            ArgumentNullException.ThrowIfNull(angle);
+            if (position is null)
+                throw Reject(operation, new ArgumentNullException(nameof(position)));
+            if (angle is null)
+                throw Reject(operation, new ArgumentNullException(nameof(angle)));
             return (new Vector(position.X, position.Y, position.Z), new QAngle(angle.X, angle.Y, angle.Z));
         }
 
         public int AddWorldText(TextPlacement placement, TextLine textLine, Vector position, QAngle angle)
         {
-            ArgumentNullException.ThrowIfNull(textLine);
+            if (textLine is null)
+                throw Reject(nameof(AddWorldText), new ArgumentNullException(nameof(textLine)));
             return AddWorldText(placement, new List<TextLine> { textLine }, position, angle);
         }
 
         public int AddWorldText(TextPlacement placement, List<TextLine> textLines, Vector position, QAngle angle)
         {
-            ValidatePlacement(placement);
-            var (spawnPosition, spawnAngle) = CopyTransform(position, angle);
-            var lines = ValidateLines(textLines, nameof(textLines));
+            ValidatePlacement(nameof(AddWorldText), placement);
+            var (spawnPosition, spawnAngle) = CopyTransform(nameof(AddWorldText), position, angle);
+            var lines = ValidateLines(nameof(AddWorldText), textLines, nameof(textLines));
 
             var multilineWorldText = new MultilineWorldText(_plugin, lines);
             _plugin.TrackWorldText(multilineWorldText);
@@ -300,17 +315,19 @@ public class Plugin : BasePlugin
 
         public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, TextLine textLine)
         {
-            ArgumentNullException.ThrowIfNull(textLine);
+            if (textLine is null)
+                throw Reject(nameof(AddWorldTextAtPlayer), new ArgumentNullException(nameof(textLine)));
             return AddWorldTextAtPlayer(player, placement, new List<TextLine> { textLine });
         }
 
         public int AddWorldTextAtPlayer(CCSPlayerController player, TextPlacement placement, List<TextLine> textLines)
         {
-            ArgumentNullException.ThrowIfNull(player);
+            if (player is null)
+                throw Reject(nameof(AddWorldTextAtPlayer), new ArgumentNullException(nameof(player)));
             if (!TryGetPawnTransform(player, out _, out _))
-                throw new ArgumentException("The player controller is invalid or has no valid pawn.", nameof(player));
-            ValidatePlacement(placement);
-            var lines = ValidateLines(textLines, nameof(textLines));
+                throw Reject(nameof(AddWorldTextAtPlayer), new ArgumentException("The player controller is invalid or has no valid pawn.", nameof(player)));
+            ValidatePlacement(nameof(AddWorldTextAtPlayer), placement);
+            var lines = ValidateLines(nameof(AddWorldTextAtPlayer), textLines, nameof(textLines));
 
             return _plugin.SpawnMultipleLines(player, placement, lines);
         }
@@ -322,8 +339,8 @@ public class Plugin : BasePlugin
 
         public void UpdateWorldText(int id, List<TextLine>? textLines = null)
         {
-            var lines = textLines is null ? null : ValidateLines(textLines, nameof(textLines));
-            var target = RequireWorldText(id);
+            var lines = textLines is null ? null : ValidateLines(nameof(UpdateWorldText), textLines, nameof(textLines));
+            var target = RequireWorldText(nameof(UpdateWorldText), id);
 
             _plugin.OnGameThread($"UpdateWorldText({id})", () =>
             {
@@ -336,7 +353,7 @@ public class Plugin : BasePlugin
 
         public void RemoveWorldText(int id)
         {
-            var target = RequireWorldText(id);
+            var target = RequireWorldText(nameof(RemoveWorldText), id);
 
             _plugin.UntrackWorldText(target);
             _plugin.OnGameThread($"RemoveWorldText({id})", target.Dispose);
@@ -359,8 +376,8 @@ public class Plugin : BasePlugin
 
         public void TeleportWorldText(int id, Vector position, QAngle angle)
         {
-            var (newPosition, newAngle) = CopyTransform(position, angle);
-            var target = RequireWorldText(id);
+            var (newPosition, newAngle) = CopyTransform(nameof(TeleportWorldText), position, angle);
+            var target = RequireWorldText(nameof(TeleportWorldText), id);
 
             _plugin.OnGameThread($"TeleportWorldText({id})", () =>
             {
