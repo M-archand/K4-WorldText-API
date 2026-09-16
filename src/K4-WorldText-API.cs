@@ -28,7 +28,7 @@ public class Plugin : BasePlugin
 
     internal void ThrowIfNotGameThread(string operation)
     {
-        if (_gameThreadId != 0 && _gameThreadId != Environment.CurrentManagedThreadId)
+        if (!IsGameThread)
             throw new InvalidOperationException(
                 $"{operation} must be called from the game thread: a command handler, a game event handler, a listener, or a Server.NextWorldUpdate callback.");
     }
@@ -61,7 +61,11 @@ public class Plugin : BasePlugin
 
     public override void Load(bool hotReload)
     {
-        Server.NextWorldUpdate(() => _gameThreadId = Environment.CurrentManagedThreadId);
+        // BasePlugin.Load runs on the game thread. Capture the id synchronously so
+        // IsGameThread is correct before the capability is registered and any
+        // consumer can call the API. A deferred capture would leave a window where
+        // every call, even from the game thread, was needlessly queued.
+        _gameThreadId = Environment.CurrentManagedThreadId;
 
         Capabilities.RegisterPluginCapability(Capability_SharedAPI, () => new GameTextAPIHandler(this));
 
