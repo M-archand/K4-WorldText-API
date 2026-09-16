@@ -89,11 +89,11 @@ The `IK4WorldTextSharedAPI` interface exposes:
 - `int AddWorldTextAtPlayer(player, placement, textLine | textLines)` - spawns text relative to the player: at their feet for `Floor`, at their position for `Wall`, offset 15 units in the direction they face. Returns the text id.
 - `void UpdateWorldText(id, textLine | textLines = null)` - replaces the content/styling of an existing text. Entities are updated in place when the line count, font sizes, and background layout are unchanged; otherwise they are respawned. Passing no lines re-applies the current ones.
 - `void RemoveWorldText(id)` - despawns a text.
-- `List<CPointWorldText>? GetWorldTextLineEntities(id)` - returns the foreground entity for each line (background entities are not included). **Game thread only** (see below).
+- `List<CPointWorldText>? GetWorldTextLineEntities(id)` - returns the valid foreground entity for each line (background entities and lines whose entity is currently invalid are not included), or `null` if the id is not tracked. **Game thread only** (see below).
 - `void TeleportWorldText(id, position, angle)` - moves an existing text by respawning its entities at the new position.
 - `void RemoveAll()` - despawns every tracked text, including texts created by other consumers.
 
-`UpdateWorldText`, `RemoveWorldText`, `TeleportWorldText`, and `GetWorldTextLineEntities` throw `KeyNotFoundException("WorldText with ID N not found.")` for an id that is not tracked, including every id issued before the last map change. Catch that type to handle the expected post-map-change case.
+`UpdateWorldText`, `RemoveWorldText`, and `TeleportWorldText` throw `KeyNotFoundException("WorldText with ID N not found.")` for an id that is not tracked, including every id issued before the last map change. Catch that type to handle the expected post-map-change case. `GetWorldTextLineEntities` returns `null` instead.
 
 Arguments are validated synchronously on the calling thread before any work is queued, and a bad argument throws an `ArgumentException` (or a subclass): a null `player`, `position`, `angle`, `textLine`, or `textLines`; an empty `textLines` list or one containing a null entry or a null `Text`; a `placement` outside the `TextPlacement` enum. The plugin copies `textLines` at the call, so the caller may reuse or clear its list afterwards.
 

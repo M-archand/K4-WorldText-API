@@ -282,9 +282,15 @@ public class Plugin : BasePlugin
 
         public List<CPointWorldText>? GetWorldTextLineEntities(int id)
         {
-            var target = RequireWorldText(id);
+            var target = _plugin.FindWorldText(id);
+            if (target is null)
+                return null;
 
-            return target.Texts.Where(t => t.Entity != null).Select(t => t.Entity).Cast<CPointWorldText>().ToList();
+            return target.Texts
+                .Select(t => t.Entity)
+                .Where(e => e?.IsValid == true)
+                .Cast<CPointWorldText>()
+                .ToList();
         }
 
         public void TeleportWorldText(int id, Vector position, QAngle angle)
