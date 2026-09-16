@@ -116,6 +116,8 @@ public class Plugin : BasePlugin
 
     public string EntityFaceToDirection(float yaw)
     {
+        yaw = ((yaw % 360f) + 540f) % 360f - 180f;
+
         if (yaw >= -22.5 && yaw < 22.5)
             return "X";
         if (yaw >= 22.5 && yaw < 67.5)
