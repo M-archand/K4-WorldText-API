@@ -10,6 +10,8 @@ public class WorldText : IDisposable
     private const string SchemaClass = "CPointWorldText";
 
     private bool disposed;
+    public bool IsDisposed => disposed;
+
     public Plugin Plugin;
 
     public WorldText(Plugin plugin, Vector absOrigin, QAngle absRotation, TextLine data)
@@ -34,6 +36,11 @@ public class WorldText : IDisposable
     {
         Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
     }
 
     internal const int MessageTextByteBudget = 512;
@@ -126,6 +133,8 @@ public class WorldText : IDisposable
 
     public void Spawn()
     {
+        ThrowIfDisposed();
+
         if (Data.BackgroundEnabled)
         {
             var bg = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext")
@@ -156,6 +165,8 @@ public class WorldText : IDisposable
 
     public void Teleport(Vector absOrigin, QAngle absRotation)
     {
+        ThrowIfDisposed();
+
         AbsOrigin = absOrigin;
         AbsRotation = absRotation;
 
@@ -201,6 +212,8 @@ public class WorldText : IDisposable
 
     public void Update(TextLine? data = null)
     {
+        ThrowIfDisposed();
+
         if (TryUpdateInPlace(data))
             return;
 

@@ -335,8 +335,7 @@ public class MultilineWorldText : IDisposable
 
     public void Remove()
     {
-        if (Texts.Count > 0)
-            Texts.ForEach(text => text.Remove());
+        Texts.ForEach(text => text.Dispose());
         Texts.Clear();
         if (_blockBackground?.IsValid == true)
             _blockBackground.Remove();
