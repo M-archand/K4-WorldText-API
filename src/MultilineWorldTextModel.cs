@@ -38,6 +38,11 @@ public class MultilineWorldText : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+    }
+
     private static TextLine CloneWithoutBackground(TextLine s) => new TextLine
     {
         Text = s.Text,
@@ -63,6 +68,8 @@ public class MultilineWorldText : IDisposable
 
     public void Teleport(Vector absOrigin, QAngle absRotation, bool modifyConfig = false)
     {
+        ThrowIfDisposed();
+
         Remove();
         Spawn(absOrigin, absRotation, placement);
     }
@@ -146,6 +153,8 @@ public class MultilineWorldText : IDisposable
 
     public void Spawn(Vector absOrigin, QAngle absRotation, TextPlacement placement)
     {
+        ThrowIfDisposed();
+
         this.placement = placement;
 
         float totalAdvance = Lines.Sum(StepFor);
@@ -281,6 +290,8 @@ public class MultilineWorldText : IDisposable
 
     public void Update(List<TextLine>? lines = null)
     {
+        ThrowIfDisposed();
+
         if (TryUpdateInPlace(lines))
             return;
 

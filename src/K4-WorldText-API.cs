@@ -214,8 +214,12 @@ public class Plugin : BasePlugin
 
         public void RemoveAllTemporary()
         {
-            _plugin.MultilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList()
-                .ForEach(multilineWorldText => multilineWorldText.Dispose());
+            var targets = _plugin.MultilineWorldTexts.Where(wt => !wt.SaveToConfig).ToList();
+            foreach (var multilineWorldText in targets)
+            {
+                multilineWorldText.Dispose();
+                _plugin.UntrackWorldText(multilineWorldText);
+            }
         }
     }
 }
