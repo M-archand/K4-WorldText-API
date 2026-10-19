@@ -67,7 +67,7 @@ public class Plugin : BasePlugin
     }
 
     public override string ModuleName => "K4-WorldText-API";
-    public override string ModuleVersion => "2.0.0";
+    public override string ModuleVersion => "2.1.0";
     public override string ModuleAuthor => "K4ryuu, Marchand";
 
     public static PluginCapability<IK4WorldTextProvider> Capability_SharedAPI { get; } = new("k4-worldtext:sharedapi");

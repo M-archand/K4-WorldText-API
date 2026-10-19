@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.1.0](https://github.com/M-archand/K4-WorldText-API/compare/v2.0.0...v2.1.0) (2026-10-19)
+
+
+### Features
+
+* **api:** add a model background behind text. Set `ModelBackgroundEnabled` and `ModelBackgroundPath` on a `TextLine` to spawn one `prop_dynamic_override` behind the whole text, with an optional material group, depth, and uniform scale. It is independent of the `point_worldtext` background panel, so a line may use either, both, or neither. The consuming plugin precaches the model ([9daf8e2](https://github.com/M-archand/K4-WorldText-API/commit/9daf8e2e1db63889d5000af3b721f91469f8504e))
+
+
+### API Changes (2.0.0 -> 2.1.0)
+
+**New `TextLine` fields**
+
+* `bool ModelBackgroundEnabled` (default `false`) - spawn a model background behind the text. Ignored while `ModelBackgroundPath` is empty
+* `string ModelBackgroundPath` (default `""`) - the `.vmdl` to show, for example `models/my_plugin/panel.vmdl`. The API does not precache it: add it from your own `Listeners.OnServerPrecacheResources` listener with `manifest.AddResource(path)`, or the prop renders nothing
+* `string ModelBackgroundMaterialGroup` (default `""`) - the material group (skin) name declared in the model's `MaterialGroupList`. Empty or an unknown name keeps the model's `DefaultMaterialGroup`
+* `int ModelBackgroundDepth` (default `2`) - world units the prop sits behind the text plane, away from the viewer. Clamped to ±1000
+* `float ModelBackgroundSurfaceScale` (default `1.0`) - uniform scale of the prop. Clamped to 0.01-100
+
+**Behaviour**
+
+* One prop per text. For a multi-line text, the first line with `ModelBackgroundEnabled` and a non-empty `ModelBackgroundPath` supplies the settings, and the prop is centered on the stack of lines
+* The prop spawns with collision disabled, so it never blocks players or bullets
+* `UpdateWorldText` updates in place only when the model background settings are also unchanged. A change to any `ModelBackground*` field respawns the text
+* `TeleportWorldText` moves the prop in place along with the lines
+* `GetWorldTextLineEntities` does not include the prop
+* Texts that do not enable a model background behave exactly as in 2.0.0
+
+
 ## [2.0.0](https://github.com/M-archand/K4-WorldText-API/compare/v1.3.0...v2.0.0) (2026-09-16)
 
 

@@ -12,7 +12,7 @@ The release zip mirrors the CounterStrikeSharp layout. Extract it into your serv
 - `addons/counterstrikesharp/plugins/K4-WorldText-API/` - the plugin.
 - `addons/counterstrikesharp/shared/K4-WorldText-SharedAPI/` - the shared API assembly.
 
-Consumer plugins reference `K4-WorldText-SharedAPI.dll` at compile time and must not ship their own copy of it; CounterStrikeSharp loads the one in `shared/`. Keep the `K4-WorldText-SharedAPI.xml` next to the referenced DLL to get the API documentation in IntelliSense.
+Consumer plugins reference `K4-WorldText-SharedAPI.dll` at compile time and must not ship their own copy of it; CounterStrikeSharp loads the one in `shared/`. The release zip does not include the API documentation file. To get the API documentation in IntelliSense, build `K4-WorldText-SharedAPI` from source and keep the generated `K4-WorldText-SharedAPI.xml` next to the referenced DLL.
 
 ## Example
 ```c#
