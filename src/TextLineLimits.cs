@@ -17,6 +17,11 @@ internal static class TextLineLimits
 
     public const float MaxDepthOffset = 100f;
 
+    // Background prop: how far it sits from the text plane, and the model scale it may use
+    public const int MaxModelDepth  = 1000;
+    public const float MinPropScale = 0.01f;
+    public const float MaxPropScale = 100f;
+
     // One NBSP mask character costs 2 UTF-8 bytes, so this is the widest single-line mask that fits the budget.
     public const int MaxCharsPerLine = WorldText.MessageTextByteBudget / 2;
     public const int MaxPadChars = 256;
@@ -27,15 +32,17 @@ internal static class TextLineLimits
     // CPointWorldText::m_FontName is a fixed 64-byte char array.
     public const int FontNameByteBudget = 64;
 
-    public static int FontSize(int value) => Math.Clamp(value, MinFontSize, MaxFontSize);
-    public static float Scale(float value) => Clamp(value, MinScale, MaxScale);
-    public static float WorldToUV(float value) => Clamp(value, MinWorldToUV, MaxWorldToUV);
-    public static float Border(float value) => Clamp(value, 0f, MaxBorder);
-    public static float DepthOffset(float value) => Clamp(value, -MaxDepthOffset, MaxDepthOffset);
-    public static int CharsPerLine(int value) => Math.Clamp(value, 1, MaxCharsPerLine);
-    public static int PadChars(int value) => Math.Clamp(value, 0, MaxPadChars);
-    public static float WidthInflation(float value) => Clamp(value, MinWidthInflation, MaxWidthInflation);
-    public static string FontName(string? value) => WorldText.ClampToByteBudget(value, FontNameByteBudget);
+    public static int    FontSize(int value)         => Math.Clamp(value, MinFontSize, MaxFontSize);
+    public static float  Scale(float value)          => Clamp(value, MinScale, MaxScale);
+    public static float  WorldToUV(float value)      => Clamp(value, MinWorldToUV, MaxWorldToUV);
+    public static float  Border(float value)         => Clamp(value, 0f, MaxBorder);
+    public static float  DepthOffset(float value)    => Clamp(value, -MaxDepthOffset, MaxDepthOffset);
+    public static int    CharsPerLine(int value)     => Math.Clamp(value, 1, MaxCharsPerLine);
+    public static int    PadChars(int value)         => Math.Clamp(value, 0, MaxPadChars);
+    public static float  WidthInflation(float value) => Clamp(value, MinWidthInflation, MaxWidthInflation);
+    public static string FontName(string? value)     => WorldText.ClampToByteBudget(value, FontNameByteBudget);
+    public static int    ModelDepth(int value)       => Math.Clamp(value, -MaxModelDepth, MaxModelDepth);
+    public static float  PropScale(float value)      => Clamp(value, MinPropScale, MaxPropScale);
 
     // NaN becomes the in-range value closest to zero.
     private static float Clamp(float value, float min, float max) =>

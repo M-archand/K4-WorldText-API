@@ -1,5 +1,5 @@
 # K4 WorldText API for CSSharp
-A shared-API-only CounterStrikeSharp plugin for spawning and managing in-world text entities (`point_worldtext`) in Counter-Strike 2. It handles single and multi-line texts, optional background panels, per-line styling, placement on walls or floors, live updates, and teleporting, so consuming plugins never touch entity plumbing.
+A shared-API-only CounterStrikeSharp plugin for spawning and managing in-world text entities (`point_worldtext`) in Counter-Strike 2. It handles single and multi-line texts, optional background panels, optional model backgrounds, per-line styling, placement on walls or floors, live updates, and teleporting, so consuming plugins never touch entity plumbing.
 
 The plugin has no commands, no configuration file, and does nothing on its own. Every text is created by another plugin through `IK4WorldTextSharedAPI`. A consumer gets the `IK4WorldTextProvider` from the `k4-worldtext:sharedapi` plugin capability (shared `K4WorldTextSharedAPI` assembly) and calls `ForPlugin(this)` on it to receive its own scope. Every text belongs to the plugin that created it.
 
@@ -97,7 +97,7 @@ public void OnRemoveCommand(CCSPlayerController? caller, CommandInfo _)
 The `IK4WorldTextSharedAPI` scope exposes:
 - `int AddWorldText(placement, textLine | textLines, position, angle)` - spawns a single- or multi-line text at a world position/angle. Returns the text id.
 - `int AddWorldTextAtPlayer(player, placement, textLine | textLines)` - spawns text relative to the player: at their feet for `Floor`, at their position for `Wall`, offset 15 units in the direction they face. Returns the text id.
-- `void UpdateWorldText(id, textLine | textLines = null)` - replaces the content/styling of an existing text. Entities are updated in place when the line count, font sizes, and background layout are unchanged; otherwise they are respawned. Passing no lines re-applies the current ones.
+- `void UpdateWorldText(id, textLine | textLines = null)` - replaces the content/styling of an existing text. Entities are updated in place when the line count, font sizes, background layout, and model background settings are unchanged; otherwise they are respawned. Passing no lines re-applies the current ones.
 - `void RemoveWorldText(id)` - despawns a text.
 - `List<CPointWorldText>? GetWorldTextLineEntities(id)` - returns the valid foreground entity for each line (background entities and lines whose entity is currently invalid are not included), or `null` if the id is not tracked. **Game thread only** (see below).
 - `void TeleportWorldText(id, position, angle)` - moves an existing text in place. Entities are respawned only if one of them is no longer valid.
@@ -109,9 +109,24 @@ Arguments are validated synchronously on the calling thread before any work is q
 
 Failures inside the entity work (for example `point_worldtext` creation failing because the server is out of entity slots) never reach the caller, whether the work ran immediately or was queued: the plugin rolls back any entities it created for that operation, logs the exception through its own logger, and keeps the id tracked so `RemoveWorldText` still works. The next round start retries the spawn. The one exception is `AddWorldTextAtPlayer` when the player is no longer valid by the time the queued spawn runs: there is no position to retry from, so the text is discarded, its id becomes unknown (`KeyNotFoundException` / `null` as described above), and a warning is logged.
 
-`placement` is `TextPlacement.Wall` or `TextPlacement.Floor`. Each `TextLine` carries its own styling: color, font, size, scale, justification, reorient mode, and an optional background panel (`BackgroundEnabled` plus the `Background*` fields). `Text` longer than 512 UTF-8 bytes is truncated on a character boundary; that is the `point_worldtext` limit.
+`placement` is `TextPlacement.Wall` or `TextPlacement.Floor`. Each `TextLine` carries its own styling: color, font, size, scale, justification, reorient mode, an optional background panel (`BackgroundEnabled` plus the `Background*` fields), and an optional model background (`ModelBackgroundEnabled` plus the `ModelBackground*` fields, see below). `Text` longer than 512 UTF-8 bytes is truncated on a character boundary; that is the `point_worldtext` limit.
 
-Numeric styling fields are clamped before they reach the entity, never rejected: `FontSize` to 1–500, `Scale` and `BackgroundScale` to 0.01–10, `BackgroundWorldToUV` to 0.001–10, `BackgroundBorderWidth`/`BackgroundBorderHeight` to 0–1000, the depth offsets to ±100, `BackgroundMaxCharsPerLine` to 1–256, `BackgroundPadChars` to 0–256, and `BackgroundWidthInflation` to 0.1–10. `NaN` becomes the in-range value closest to zero. `FontName` is truncated to 64 UTF-8 bytes, the size of the entity's font-name field.
+Numeric styling fields are clamped before they reach the entity, never rejected: `FontSize` to 1–500, `Scale` and `BackgroundScale` to 0.01–10, `BackgroundWorldToUV` to 0.001–10, `BackgroundBorderWidth`/`BackgroundBorderHeight` to 0–1000, the depth offsets to ±100, `BackgroundMaxCharsPerLine` to 1–256, `BackgroundPadChars` to 0–256, `BackgroundWidthInflation` to 0.1–10, `ModelBackgroundDepth` to ±1000, and `ModelBackgroundSurfaceScale` to 0.01–100. `NaN` becomes the in-range value closest to zero. `FontName` is truncated to 64 UTF-8 bytes, the size of the entity's font-name field.
+
+### Model background
+Besides the `point_worldtext` panel, a text can have a model placed behind it: set `ModelBackgroundEnabled = true` and `ModelBackgroundPath` to a `.vmdl` path, and the plugin spawns one `prop_dynamic_override` with that model behind the whole text. Use it for a textured or shaped backdrop the plain panel cannot provide. The panel and the model background are independent; a line may use either, both, or neither.
+
+- **Precache the model yourself.** The API only references the model. Add it from your own `Listeners.OnServerPrecacheResources` listener, or the prop renders nothing:
+  ```c#
+  RegisterListener<Listeners.OnServerPrecacheResources>(manifest =>
+      manifest.AddResource("models/my_plugin/panel.vmdl"));
+  ```
+- One prop per text. For a multi-line text the first line with `ModelBackgroundEnabled` and a non-empty `ModelBackgroundPath` supplies the settings; the prop is centered on the stack of lines.
+- `ModelBackgroundMaterialGroup` selects a skin by the name declared in the model's `MaterialGroupList` (for example `burgundy` for a model that remaps its materials per color). Leave it empty for the model's `DefaultMaterialGroup`; an unknown name also falls back to the default.
+- `ModelBackgroundDepth` (default 2) pushes the prop that many world units back from the text plane, away from the viewer, so it does not overlap the text. `ModelBackgroundSurfaceScale` (default 1) scales the prop uniformly.
+- The prop spawns with collision disabled, so it never blocks players or bullets.
+- The prop is configured at spawn only. `UpdateWorldText` respawns the text when any `ModelBackground*` field changes; `TeleportWorldText` moves the prop in place along with the lines.
+- `GetWorldTextLineEntities` does not include the prop.
 
 ### Lifecycle
 - A text exists only because a consumer created it, and only until that consumer removes it (`RemoveWorldText`, or its own `RemoveAll()`) or the map ends. No other plugin can remove or modify it. Nothing is loaded from or saved to disk.

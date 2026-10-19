@@ -118,6 +118,44 @@ public class TextLine
 
     /// <summary>Extra invisible "character" padding on each side of the mask. Clamped to 0–256.</summary>
     public int BackgroundPadChars { get; set; } = 2;
+
+    /// <summary>
+    /// Spawn a <c>prop_dynamic_override</c> behind the text as a model background. Independent of the
+    /// <see cref="BackgroundEnabled"/> panel: either, both, or neither may be on. One prop is spawned per text, centered
+    /// on the stack of lines, for a multi-line text the first line with this enabled and a non-empty
+    /// <see cref="ModelBackgroundPath"/> supplies the settings. Ignored while <see cref="ModelBackgroundPath"/> is empty.
+    /// The prop spawns with collision disabled, so it never blocks players or bullets.
+    /// </summary>
+    public bool ModelBackgroundEnabled = false;
+
+    /// <summary>
+    /// Path of the <c>.vmdl</c> model to show behind the text, for example <c>models/my_plugin/panel.vmdl</c>.
+    /// The consuming plugin must precache it from its own <c>Listeners.OnServerPrecacheResources</c> listener
+    /// (<c>manifest.AddResource(path)</c>), this API does not precache models, and an unprecached model renders nothing.
+    /// Changing it, <see cref="ModelBackgroundMaterialGroup"/>, <see cref="ModelBackgroundDepth"/>, or
+    /// <see cref="ModelBackgroundSurfaceScale"/> through
+    /// <see cref="IK4WorldTextSharedAPI.UpdateWorldText(int, TextLine?)"/> respawns the text.
+    /// </summary>
+    public string ModelBackgroundPath = "";
+
+    /// <summary>
+    /// Name of the material group (skin) the prop uses, as declared in the model's <c>MaterialGroupList</c>, for
+    /// example <c>burgundy</c>. Empty, the default, keeps the model's <c>DefaultMaterialGroup</c>. A name the model
+    /// does not declare also falls back to the default.
+    /// </summary>
+    public string ModelBackgroundMaterialGroup = "";
+
+    /// <summary>
+    /// Distance in world units the prop is pushed back from the text plane, away from the viewer, so it does not overlap
+    /// the text. Clamped to ±1000.
+    /// </summary>
+    public int ModelBackgroundDepth = 2;
+
+    /// <summary>
+    /// Uniform scale applied to the prop, Source 2 props only scale uniformly. 1 keeps the model's own size, 2 doubles it,
+    /// 0.5 halves it. Clamped to 0.01–100.
+    /// </summary>
+    public float ModelBackgroundSurfaceScale = 1.0f;
 }
 
 /// <summary>
@@ -217,7 +255,8 @@ public interface IK4WorldTextSharedAPI
 
     /// <summary>
     /// Replaces the content and styling of an existing text with a single line. The entity is updated in place when
-    /// the line count, font sizes, and background layout are unchanged; otherwise the text is respawned.
+    /// the line count, font sizes, background layout, and model background settings are unchanged; otherwise the text
+    /// is respawned.
     /// </summary>
     /// <param name="id">Id issued by this scope.</param>
     /// <param name="textLine">New content and styling, or <c>null</c> to re-apply the current lines.</param>
@@ -227,7 +266,8 @@ public interface IK4WorldTextSharedAPI
 
     /// <summary>
     /// Replaces the content and styling of an existing text with a list of lines. Entities are updated in place when
-    /// the line count, font sizes, and background layout are unchanged; otherwise the text is respawned.
+    /// the line count, font sizes, background layout, and model background settings are unchanged; otherwise the text
+    /// is respawned.
     /// </summary>
     /// <param name="id">Id issued by this scope.</param>
     /// <param name="textLines">New content and styling for each line, or <c>null</c> to re-apply the current lines. The list is copied at the call.</param>

@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using K4ryuuCS2WorldTextAPI;
 using K4WorldTextSharedAPI;
+using System.Globalization;
 
 public class MultilineWorldText : IDisposable
 {
@@ -19,6 +20,7 @@ public class MultilineWorldText : IDisposable
     public Vector? SpawnOrigin;
     public QAngle? SpawnRotation;
     private CPointWorldText? _blockBackground;
+    private CDynamicProp? _modelBackground;
 
     public MultilineWorldText(Plugin plugin, string owner, List<TextLine> lines)
     {
@@ -68,6 +70,13 @@ public class MultilineWorldText : IDisposable
 
     private static float StepFor(TextLine l) => MathF.Max(10f, TextLineLimits.FontSize(l.FontSize) / 3f);
 
+    private static bool UsesModelBackground(TextLine l) =>
+        l.ModelBackgroundEnabled && !string.IsNullOrEmpty(l.ModelBackgroundPath);
+
+    // One prop per text, the first line that enables it supplies the settings.
+    private static TextLine? ModelBackgroundLine(List<TextLine> lines) =>
+        lines.FirstOrDefault(UsesModelBackground);
+
     public void Teleport(Vector absOrigin, QAngle absRotation)
     {
         ThrowIfDisposed();
@@ -88,6 +97,12 @@ public class MultilineWorldText : IDisposable
 
         if (_blockBackground?.IsValid == true)
             _blockBackground.Teleport(LineOrigin(absOrigin, floorDir, UsedHeight() * 0.5f), absRotation, null);
+
+        if (_modelBackground?.IsValid == true && ModelBackgroundLine(Lines) is { } modelCfg)
+        {
+            var (propOrigin, propRotation) = ModelBackgroundTransform(absOrigin, absRotation, floorDir, modelCfg);
+            _modelBackground.Teleport(propOrigin, propRotation);
+        }
 
         float currentHeight = 0f;
         for (int i = 0; i < Texts.Count; i++)
@@ -112,6 +127,35 @@ public class MultilineWorldText : IDisposable
         TextPlacement.Floor => absOrigin - Plugin.GetDirectionOffset(floorDir, distance),
         _ => absOrigin
     };
+
+    // The prop is centered on the line stack and pushed back along the facing direction, so it sits behind the
+    // text plane instead of overlapping it. It is rotated to present its front face to the viewer.
+    private (Vector Origin, QAngle Rotation) ModelBackgroundTransform(Vector absOrigin, QAngle absRotation, string floorDir, TextLine cfg)
+    {
+        var origin = LineOrigin(absOrigin, floorDir, UsedHeight() * 0.5f)
+                   + Plugin.GetDirectionOffset(floorDir, TextLineLimits.ModelDepth(cfg.ModelBackgroundDepth));
+
+        var rotation = placement switch
+        {
+            TextPlacement.Wall => new QAngle(0f, absRotation.Y + 90f, 0f),
+            TextPlacement.Floor => new QAngle(0f, absRotation.Y - 90f, 0f),
+            _ => absRotation
+        };
+
+        return (origin, rotation);
+    }
+
+    // Source 2 props only scale uniformly, we can't do XYZ independently
+    private static void ApplyPropScale(CDynamicProp prop, float scale)
+    {
+        var skeleton = prop.CBodyComponent?.SceneNode?.GetSkeletonInstance();
+        if (skeleton is null || skeleton.Handle == IntPtr.Zero)
+            return;
+
+        skeleton.Scale = scale;
+        prop.AcceptInput("SetScale", value: scale.ToString(CultureInfo.InvariantCulture));
+        Utilities.SetStateChanged(prop, "CBaseEntity", "m_CBodyComponent");
+    }
 
     private static string MakeBlockMask(
         IReadOnlyList<string> lines,
@@ -225,6 +269,36 @@ public class MultilineWorldText : IDisposable
             _blockBackground = bg;
         }
 
+        var modelCfg = ModelBackgroundLine(Lines);
+        if (modelCfg is not null)
+        {
+            var prop = Utilities.CreateEntityByName<CDynamicProp>("prop_dynamic_override")
+                    ?? throw new InvalidOperationException("Failed to create model background prop_dynamic_override.");
+
+            // Track it before anything else can throw
+            _modelBackground = prop;
+
+            // SF_DYNAMICPROP_DISABLE_COLLISION, a backdrop shouldn't block players or bullets
+            prop.Spawnflags = 256;
+
+            // The model goes in through spawn keyvalues
+            // The consuming plugin precaches the model, the API only references it
+            using var keyValues = new CEntityKeyValues();
+            keyValues.SetString("model", modelCfg.ModelBackgroundPath);
+            // "skin" is the Studiomodel keyvalue for a material group name, omitted, the model's default group applies
+            if (!string.IsNullOrEmpty(modelCfg.ModelBackgroundMaterialGroup))
+                keyValues.SetString("skin", modelCfg.ModelBackgroundMaterialGroup);
+            prop.DispatchSpawn(keyValues);
+
+            float propScale = TextLineLimits.PropScale(modelCfg.ModelBackgroundSurfaceScale);
+            if (MathF.Abs(propScale - 1f) > 0.001f)
+                ApplyPropScale(prop, propScale);
+
+            // Teleport after DispatchSpawn, the spawn would otherwise overwrite the rotation
+            var (propOrigin, propRotation) = ModelBackgroundTransform(absOrigin, absRotation, floorDir, modelCfg);
+            prop.Teleport(propOrigin, propRotation);
+        }
+
         float currentHeight = 0f;
 
         foreach (var line in Lines)
@@ -252,6 +326,9 @@ public class MultilineWorldText : IDisposable
             if (UsesBlockBackground(Lines) && _blockBackground?.IsValid != true)
                 return false;
 
+            if (ModelBackgroundLine(Lines) is not null && _modelBackground?.IsValid != true)
+                return false;
+
             foreach (var text in Texts)
             {
                 if (!text.HasValidEntities)
@@ -276,6 +353,9 @@ public class MultilineWorldText : IDisposable
         if (blockBg && _blockBackground?.IsValid != true)
             return false;
 
+        if (ModelBackgroundLine(Lines) is not null && _modelBackground?.IsValid != true)
+            return false;
+
         for (int i = 0; i < next.Count; i++)
         {
             var prev = Lines[i];
@@ -286,6 +366,18 @@ public class MultilineWorldText : IDisposable
             if (prev.BackgroundEnabled != cur.BackgroundEnabled)
                 return false;
             if (prev.BackgroundAsSingleBlock != cur.BackgroundAsSingleBlock)
+                return false;
+
+            // The prop is configured at spawn only, so any model background change respawns the text.
+            if (prev.ModelBackgroundEnabled != cur.ModelBackgroundEnabled)
+                return false;
+            if (prev.ModelBackgroundPath != cur.ModelBackgroundPath)
+                return false;
+            if (prev.ModelBackgroundMaterialGroup != cur.ModelBackgroundMaterialGroup)
+                return false;
+            if (prev.ModelBackgroundDepth != cur.ModelBackgroundDepth)
+                return false;
+            if (prev.ModelBackgroundSurfaceScale != cur.ModelBackgroundSurfaceScale)
                 return false;
 
             if (!Texts[i].CanUpdateInPlace(ForegroundLine(cur, blockBg)))
@@ -357,6 +449,9 @@ public class MultilineWorldText : IDisposable
         if (_blockBackground?.IsValid == true)
             _blockBackground.Remove();
         _blockBackground = null;
+        if (_modelBackground?.IsValid == true)
+            _modelBackground.Remove();
+        _modelBackground = null;
     }
 
     protected virtual void Dispose(bool disposing)
