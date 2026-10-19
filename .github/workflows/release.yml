@@ -52,7 +52,7 @@ jobs:
               exit 1
             fi
           done
-          for f in K4-WorldText-SharedAPI.dll K4-WorldText-SharedAPI.pdb K4-WorldText-SharedAPI.deps.json K4-WorldText-SharedAPI.xml; do
+          for f in K4-WorldText-SharedAPI.dll K4-WorldText-SharedAPI.pdb K4-WorldText-SharedAPI.deps.json; do
             if [ ! -f "${SHARED_OUT}/${f}" ]; then
               echo "::error::${f} not found in ${SHARED_OUT} after build"
               exit 1
@@ -61,16 +61,18 @@ jobs:
 
           # CSS install layout: archive root holds K4-WorldText-API-v{version}/
           #   addons/counterstrikesharp/plugins/K4-WorldText-API/  -> plugin dll, pdb, deps.json
-          #   addons/counterstrikesharp/shared/K4-WorldText-SharedAPI/ -> API dll, pdb, deps.json, XML docs
+          #   addons/counterstrikesharp/shared/K4-WorldText-SharedAPI/ -> API dll, pdb, deps.json
           rm -rf package
           ROOT="package/${FOLDER}"
           PLUGIN_DIR="${ROOT}/addons/counterstrikesharp/plugins/K4-WorldText-API"
           SHARED_DIR="${ROOT}/addons/counterstrikesharp/shared/K4-WorldText-SharedAPI"
           mkdir -p "${PLUGIN_DIR}" "${SHARED_DIR}"
 
-          # Everything the build produced: dll, pdb, deps.json, and (shared only) the XML doc file
+          # Everything the build produced: dll, pdb, deps.json. The shared XML doc file is
+          # IntelliSense-only (nothing loads it at runtime), so it stays out of the server zip.
           cp -r "${PLUGIN_OUT}/." "${PLUGIN_DIR}/"
           cp -r "${SHARED_OUT}/." "${SHARED_DIR}/"
+          rm -f "${SHARED_DIR}/K4-WorldText-SharedAPI.xml"
 
           echo "Packaged contents:"
           find "${ROOT}" -type f | sort
