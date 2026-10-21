@@ -19,6 +19,7 @@ internal static class TextLineLimits
 
     // Background prop: how far it sits from the text plane, and the model scale it may use
     public const int MaxModelDepth  = 1000;
+    public const float MaxModelOffset = 1000f;
     public const float MinPropScale = 0.01f;
     public const float MaxPropScale = 100f;
 
@@ -43,6 +44,8 @@ internal static class TextLineLimits
     public static string FontName(string? value)     => WorldText.ClampToByteBudget(value, FontNameByteBudget);
     public static int    ModelDepth(int value)       => Math.Clamp(value, -MaxModelDepth, MaxModelDepth);
     public static float  PropScale(float value)      => Clamp(value, MinPropScale, MaxPropScale);
+    public static float  Rotation(float value)       => float.IsNaN(value) ? 0f : value % 360f;
+    public static float  ModelOffset(float value)    => Clamp(value, -MaxModelOffset, MaxModelOffset);
 
     // NaN becomes the in-range value closest to zero.
     private static float Clamp(float value, float min, float max) =>

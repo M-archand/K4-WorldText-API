@@ -122,7 +122,8 @@ public class TextLine
     /// <summary>
     /// Spawn a <c>prop_dynamic_override</c> behind the text as a model background. Independent of the
     /// <see cref="BackgroundEnabled"/> panel: either, both, or neither may be on. One prop is spawned per text, centered
-    /// on the stack of lines, for a multi-line text the first line with this enabled and a non-empty
+    /// on the stack of lines (see <see cref="ModelBackgroundAutoCenter"/> for the horizontal centering), for a
+    /// multi-line text the first line with this enabled and a non-empty
     /// <see cref="ModelBackgroundPath"/> supplies the settings. Ignored while <see cref="ModelBackgroundPath"/> is empty.
     /// The prop spawns with collision disabled, so it never blocks players or bullets.
     /// </summary>
@@ -132,8 +133,8 @@ public class TextLine
     /// Path of the <c>.vmdl</c> model to show behind the text, for example <c>models/my_plugin/panel.vmdl</c>.
     /// The consuming plugin must precache it from its own <c>Listeners.OnServerPrecacheResources</c> listener
     /// (<c>manifest.AddResource(path)</c>), this API does not precache models, and an unprecached model renders nothing.
-    /// Changing it, <see cref="ModelBackgroundMaterialGroup"/>, <see cref="ModelBackgroundDepth"/>, or
-    /// <see cref="ModelBackgroundSurfaceScale"/> through
+    /// Changing it, <see cref="ModelBackgroundMaterialGroup"/>, <see cref="ModelBackgroundDepth"/>,
+    /// <see cref="ModelBackgroundRotation"/>, or <see cref="ModelBackgroundSurfaceScale"/> through
     /// <see cref="IK4WorldTextSharedAPI.UpdateWorldText(int, TextLine?)"/> respawns the text.
     /// </summary>
     public string ModelBackgroundPath = "";
@@ -152,10 +153,36 @@ public class TextLine
     public int ModelBackgroundDepth = 2;
 
     /// <summary>
+    /// Degrees the prop is turned around the axis that points at the viewer, so it spins within the text plane and
+    /// stays behind the text. 0, the default, keeps the model's own orientation; 90 or -90 swaps its width and height,
+    /// turning a 100x50 model into a 50x100 one. The sign picks the spin direction. The spin is around the model's
+    /// origin, so a model authored with its origin off-center moves as it turns. <c>NaN</c> becomes 0.
+    /// </summary>
+    public float ModelBackgroundRotation = 0f;
+
+    /// <summary>
     /// Uniform scale applied to the prop, Source 2 props only scale uniformly. 1 keeps the model's own size, 2 doubles it,
     /// 0.5 halves it. Clamped to 0.01–100.
     /// </summary>
     public float ModelBackgroundSurfaceScale = 1.0f;
+
+    /// <summary>
+    /// Keep the prop centered on the text when lines are left- or right-justified. A <c>point_worldtext</c> origin sits
+    /// at the left edge of a left-justified line and at the right edge of a right-justified one, so without this the
+    /// prop is centered on that edge instead of on the text. true, the default, shifts the prop by half the widest
+    /// line along the text's horizontal axis; centered lines need no shift. The width is estimated from the characters,
+    /// <see cref="FontSize"/> and <see cref="Scale"/> with average sans-serif glyph widths, so it is approximate:
+    /// correct the remainder with <see cref="ModelBackgroundOffsetX"/>. Changing this moves the prop in place.
+    /// </summary>
+    public bool ModelBackgroundAutoCenter = true;
+
+    /// <summary>
+    /// Extra shift of the prop along the text's horizontal axis in world units, positive toward the viewer's right and
+    /// negative toward the viewer's left, added after <see cref="ModelBackgroundAutoCenter"/>. Use it to correct the
+    /// auto-centering estimate, or to place the prop by hand with auto-centering off. Clamped to ±1000, <c>NaN</c>
+    /// becomes 0. Changing it moves the prop in place.
+    /// </summary>
+    public float ModelBackgroundOffsetX = 0f;
 }
 
 /// <summary>

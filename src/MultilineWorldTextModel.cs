@@ -128,21 +128,40 @@ public class MultilineWorldText : IDisposable
         _ => absOrigin
     };
 
-    // The prop is centered on the line stack and pushed back along the facing direction, so it sits behind the
-    // text plane instead of overlapping it. It is rotated to present its front face to the viewer.
+    // The prop is centered on the line stack, shifted along the text's horizontal axis so it also centers on left or
+    // right justified lines, and pushed back along the facing direction, so it sits behind the text plane instead of
+    // overlapping it. It is rotated to present its front face to the viewer.
     private (Vector Origin, QAngle Rotation) ModelBackgroundTransform(Vector absOrigin, QAngle absRotation, string floorDir, TextLine cfg)
     {
         var origin = LineOrigin(absOrigin, floorDir, UsedHeight() * 0.5f)
-                   + Plugin.GetDirectionOffset(floorDir, TextLineLimits.ModelDepth(cfg.ModelBackgroundDepth));
+                   + Plugin.GetDirectionOffset(floorDir, TextLineLimits.ModelDepth(cfg.ModelBackgroundDepth))
+                   + HorizontalOffset(absRotation, ModelBackgroundShift(cfg));
 
+        // Roll spins the model around its own forward axis, the one pointing at the viewer, so it stays in-plane
+        float spin = TextLineLimits.Rotation(cfg.ModelBackgroundRotation);
         var rotation = placement switch
         {
-            TextPlacement.Wall => new QAngle(0f, absRotation.Y + 90f, 0f),
-            TextPlacement.Floor => new QAngle(0f, absRotation.Y - 90f, 0f),
+            TextPlacement.Wall => new QAngle(0f, absRotation.Y + 90f, spin),
+            TextPlacement.Floor => new QAngle(0f, absRotation.Y - 90f, spin),
             _ => absRotation
         };
 
         return (origin, rotation);
+    }
+
+    // Text runs along the entity's yaw toward the viewer's right, for both placements
+    private static Vector HorizontalOffset(QAngle absRotation, float distance)
+    {
+        float yaw = absRotation.Y * MathF.PI / 180f;
+        return new Vector(MathF.Cos(yaw) * distance, MathF.Sin(yaw) * distance, 0f);
+    }
+
+    private float ModelBackgroundShift(TextLine cfg)
+    {
+        float shift = TextLineLimits.ModelOffset(cfg.ModelBackgroundOffsetX);
+        if (cfg.ModelBackgroundAutoCenter)
+            shift += TextWidthEstimator.CenterOffset(Lines);
+        return shift;
     }
 
     // Source 2 props only scale uniformly, we can't do XYZ independently
@@ -377,6 +396,8 @@ public class MultilineWorldText : IDisposable
                 return false;
             if (prev.ModelBackgroundDepth != cur.ModelBackgroundDepth)
                 return false;
+            if (prev.ModelBackgroundRotation != cur.ModelBackgroundRotation)
+                return false;
             if (prev.ModelBackgroundSurfaceScale != cur.ModelBackgroundSurfaceScale)
                 return false;
 
@@ -408,6 +429,16 @@ public class MultilineWorldText : IDisposable
         }
 
         Lines = next;
+
+        // New text widths or offset fields move the prop, which needs no respawn for that.
+        if (_modelBackground?.IsValid == true && ModelBackgroundLine(next) is { } modelCfg
+            && SpawnOrigin != null && SpawnRotation != null)
+        {
+            var floorDir = Plugin.EntityFaceToDirection(SpawnRotation.Y - 270);
+            var (propOrigin, propRotation) = ModelBackgroundTransform(SpawnOrigin, SpawnRotation, floorDir, modelCfg);
+            _modelBackground.Teleport(propOrigin, propRotation);
+        }
+
         return true;
     }
 
